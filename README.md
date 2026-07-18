@@ -7,6 +7,11 @@ Branded landing page + internal console for a Proxmox VE node.
 - **Resource detail** — correlates a guest's IP with the NPM domains it serves, plus a Proxmox link.
 - **Users** — admin seeded from env; admins can create/delete users. Roles are prepared for finer permissions later.
 
+
+
+<img width="1530" height="1028" alt="image" src="https://github.com/user-attachments/assets/8c2c51ff-e791-4d74-b568-f770ad8fe341" />
+
+
 ## Stack
 
 .NET 10 Blazor Server · SQLite (users) · cookie auth · custom CSS. No external UI framework.
