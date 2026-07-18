@@ -30,8 +30,11 @@ builder.Services.AddSingleton<BrandResolver>();
 builder.Services.AddHttpClient<PveClient>((sp, c) =>
 {
     var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PveOptions>>().Value;
-    if (!string.IsNullOrWhiteSpace(o.BaseUrl)) c.BaseAddress = new Uri(o.BaseUrl);
-    if (!string.IsNullOrWhiteSpace(o.ApiToken)) c.DefaultRequestHeaders.Authorization = PveClient.BuildAuth(o.ApiToken);
+    // trailing slash so relative paths append instead of replacing /api2/json
+    if (!string.IsNullOrWhiteSpace(o.BaseUrl)) c.BaseAddress = new Uri(o.BaseUrl.TrimEnd('/') + "/");
+    // Proxmox expects: Authorization: PVEAPIToken=USER@REALM!TOKENID=SECRET  (note the '=', not a space)
+    if (!string.IsNullOrWhiteSpace(o.ApiToken))
+        c.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"PVEAPIToken={o.ApiToken}");
     c.Timeout = TimeSpan.FromSeconds(15);
 }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {

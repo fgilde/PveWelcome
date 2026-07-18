@@ -18,7 +18,7 @@ public class PveClient(HttpClient http, ILogger<PveClient> log)
 
     private async Task<JsonElement> GetDataAsync(string path)
     {
-        using var res = await http.GetAsync(path);
+        using var res = await http.GetAsync(path.TrimStart('/'));
         res.EnsureSuccessStatusCode();
         var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync());
         return doc.RootElement.GetProperty("data").Clone();
@@ -150,11 +150,9 @@ public class PveClient(HttpClient http, ILogger<PveClient> log)
         // action: start | stop | reboot | shutdown
         try
         {
-            using var res = await http.PostAsync($"/nodes/{node}/{type}/{vmid}/status/{action}", null);
+            using var res = await http.PostAsync($"nodes/{node}/{type}/{vmid}/status/{action}", null);
             return res.IsSuccessStatusCode;
         }
         catch (Exception ex) { log.LogWarning(ex, "action {Action} {Vmid}", action, vmid); return false; }
     }
-
-    public static AuthenticationHeaderValue BuildAuth(string token) => new("PVEAPIToken", token);
 }
