@@ -41,6 +41,16 @@ public class UserService(AppDbContext db, IPasswordHasher<AppUser> hasher)
         return true;
     }
 
+    public async Task<bool> SetPasswordAsync(int id, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword)) return false;
+        var u = await db.Users.FindAsync(id);
+        if (u is null) return false;
+        u.PasswordHash = hasher.HashPassword(u, newPassword);
+        await db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task DeleteAsync(int id)
     {
         var u = await db.Users.FindAsync(id);

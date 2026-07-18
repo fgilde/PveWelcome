@@ -167,5 +167,6 @@ a { color: inherit; text-decoration: none; }
 .users { display: flex; flex-direction: column; gap: .5rem; }
 .user-row { display: flex; align-items: center; gap: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .7rem 1rem; }
 .user-row .uname { font-weight: 600; }
-.user-row .btn { margin-left: auto; }
+.user-row .pw-inline { margin-left: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .35rem .6rem; color: var(--text); font-size: .82rem; font-family: inherit; width: 160px; }
+.user-row .pw-inline:focus { outline: none; border-color: var(--accent); }
 .add-user { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }

@@ -17,6 +17,8 @@
                 <span class="uname">@u.Username</span>
                 <span class="pill role">@u.Role</span>
                 <span class="muted">seit @u.CreatedAt.ToString("yyyy-MM-dd")</span>
+                <input class="pw-inline" type="password" placeholder="neues Passwort" @bind="pwInputs[u.Id]" />
+                <button class="btn xs" @onclick="() => SetPw(u.Id)">Passwort setzen</button>
                 <button class="btn xs danger" disabled="@(users.Count <= 1)" @onclick="() => Delete(u.Id)">Löschen</button>
             </div>
         }
@@ -40,12 +42,29 @@
 
 @code {
     private List<AppUser> users = [];
+    private Dictionary<int, string> pwInputs = new();
     private string newName = "";
     private string newPass = "";
     private string newRole = "Admin";
     private string? msg;
 
-    protected override async Task OnInitializedAsync() => users = await UserSvc.ListAsync();
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        users = await UserSvc.ListAsync();
+        pwInputs = users.ToDictionary(u => u.Id, _ => "");
+    }
+
+    private async Task SetPw(int id)
+    {
+        msg = null;
+        var pw = pwInputs.GetValueOrDefault(id, "");
+        if (string.IsNullOrWhiteSpace(pw)) { msg = "Passwort darf nicht leer sein."; return; }
+        var ok = await UserSvc.SetPasswordAsync(id, pw);
+        msg = ok ? "Passwort geändert." : "Fehler beim Ändern.";
+        pwInputs[id] = "";
+    }
 
     private async Task Create()
     {
@@ -58,12 +77,12 @@
         var ok = await UserSvc.CreateAsync(newName, newPass, newRole);
         msg = ok ? $"'{newName}' angelegt." : $"'{newName}' existiert schon.";
         if (ok) { newName = ""; newPass = ""; }
-        users = await UserSvc.ListAsync();
+        await Reload();
     }
 
     private async Task Delete(int id)
     {
         await UserSvc.DeleteAsync(id);
-        users = await UserSvc.ListAsync();
+        await Reload();
     }
 }
