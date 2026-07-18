@@ -1,7 +1,35 @@
-﻿@page "/"
+@page "/"
+@inject BrandResolver Brands
+@inject IHttpContextAccessor Http
 
-<PageTitle>Home</PageTitle>
+<PageTitle>@brand.Name</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="landing" style="--accent:@brand.Accent">
+    <div class="bg-orbs" aria-hidden="true">
+        <span class="orb o1"></span>
+        <span class="orb o2"></span>
+        <span class="orb o3"></span>
+    </div>
 
-Welcome to your new app.
+    <div class="landing-inner">
+        <div class="badge">self-hosted · powered by Proxmox</div>
+        <h1 class="hero-title">@brand.Name</h1>
+        <p class="hero-tagline">@brand.Tagline</p>
+
+        <div class="cta-row">
+            <a class="btn btn-primary" href="@brand.ProjectsUrl" target="_blank" rel="noopener">
+                Projekte &amp; Infos ↗
+            </a>
+            <a class="btn btn-ghost" href="/login">Login</a>
+        </div>
+
+        <p class="hero-foot">Interne Konsole für Ressourcen &amp; Health — nur für Eingeloggte.</p>
+    </div>
+</div>
+
+@code {
+    private Brand brand = new();
+
+    protected override void OnInitialized()
+        => brand = Brands.Resolve(Http.HttpContext?.Request.Host.Value);
+}

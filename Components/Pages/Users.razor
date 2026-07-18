@@ -1,0 +1,69 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject UserService UserSvc
+
+<PageTitle>Users</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <h1>Benutzer</h1>
+
+    <div class="users">
+        @foreach (var u in users)
+        {
+            <div class="user-row">
+                <span class="uname">@u.Username</span>
+                <span class="pill role">@u.Role</span>
+                <span class="muted">seit @u.CreatedAt.ToString("yyyy-MM-dd")</span>
+                <button class="btn xs danger" disabled="@(users.Count <= 1)" @onclick="() => Delete(u.Id)">Löschen</button>
+            </div>
+        }
+    </div>
+
+    <h2>Neuen Benutzer anlegen</h2>
+    <div class="add-user">
+        <input placeholder="Benutzername" @bind="newName" />
+        <input placeholder="Passwort" type="password" @bind="newPass" />
+        <select @bind="newRole">
+            <option value="Admin">Admin</option>
+            <option value="Viewer">Viewer</option>
+        </select>
+        <button class="btn sm go" @onclick="Create">Anlegen</button>
+    </div>
+    @if (msg is not null)
+    {
+        <p class="muted">@msg</p>
+    }
+</div>
+
+@code {
+    private List<AppUser> users = [];
+    private string newName = "";
+    private string newPass = "";
+    private string newRole = "Admin";
+    private string? msg;
+
+    protected override async Task OnInitializedAsync() => users = await UserSvc.ListAsync();
+
+    private async Task Create()
+    {
+        msg = null;
+        if (string.IsNullOrWhiteSpace(newName) || string.IsNullOrWhiteSpace(newPass))
+        {
+            msg = "Name und Passwort nötig.";
+            return;
+        }
+        var ok = await UserSvc.CreateAsync(newName, newPass, newRole);
+        msg = ok ? $"'{newName}' angelegt." : $"'{newName}' existiert schon.";
+        if (ok) { newName = ""; newPass = ""; }
+        users = await UserSvc.ListAsync();
+    }
+
+    private async Task Delete(int id)
+    {
+        await UserSvc.DeleteAsync(id);
+        users = await UserSvc.ListAsync();
+    }
+}

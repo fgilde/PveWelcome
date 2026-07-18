@@ -1,0 +1,44 @@
+@page "/login"
+@inject BrandResolver Brands
+@inject IHttpContextAccessor Http
+
+<PageTitle>Login · @brand.Name</PageTitle>
+
+<div class="auth-wrap" style="--accent:@brand.Accent">
+    <div class="auth-card">
+        <a class="auth-brand" href="/">
+            <span class="dot" style="background:@brand.Accent"></span> @brand.Name
+        </a>
+        <h1>Anmelden</h1>
+        <p class="muted">Zugang zur internen Konsole.</p>
+
+        @if (Error is not null)
+        {
+            <div class="auth-error">Falscher Benutzername oder Passwort.</div>
+        }
+
+        <form method="post" action="/auth/login" class="auth-form">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            <label>Benutzer
+                <input name="username" autocomplete="username" required autofocus />
+            </label>
+            <label>Passwort
+                <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button type="submit" class="btn btn-primary block">Einloggen</button>
+        </form>
+
+        <a class="back" href="/">← zurück</a>
+    </div>
+</div>
+
+@code {
+    private Brand brand = new();
+
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+
+    protected override void OnInitialized()
+        => brand = Brands.Resolve(Http.HttpContext?.Request.Host.Value);
+}

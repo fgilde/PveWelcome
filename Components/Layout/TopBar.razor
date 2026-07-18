@@ -1,0 +1,38 @@
+@inject BrandResolver Brands
+@inject NavigationManager Nav
+
+<header class="topbar">
+    <a class="brand" href="/dashboard">
+        <span class="dot" style="background:@brand.Accent"></span>
+        <strong>@brand.Name</strong>
+        <span class="sub">console</span>
+    </a>
+    <nav class="links">
+        <a href="/dashboard">Dashboard</a>
+        <AuthorizeView Roles="Admin">
+            <a href="/admin/users">Users</a>
+        </AuthorizeView>
+        <span class="who">@username</span>
+        <form method="post" action="/auth/logout" class="logout-form">
+            <AntiforgeryToken />
+            <button type="submit" class="logout">Logout</button>
+        </form>
+    </nav>
+</header>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private Brand brand = new();
+    private string username = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        brand = Brands.Resolve(new Uri(Nav.BaseUri).Host);
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            username = state.User.Identity?.Name ?? "";
+        }
+    }
+}

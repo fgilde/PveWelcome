@@ -1,0 +1,123 @@
+@page "/resource/{VmId:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject PveClient Pve
+@inject NpmClient Npm
+@inject Microsoft.Extensions.Options.IOptions<PveOptions> PveOpt
+
+<PageTitle>@(guest?.Name ?? "Resource")</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <a class="back" href="/dashboard">← Dashboard</a>
+
+    @if (loading)
+    {
+        <p class="muted">Lade…</p>
+    }
+    else if (guest is null)
+    {
+        <h1>Nicht gefunden</h1>
+        <p class="muted">Keine Ressource mit #@VmId.</p>
+    }
+    else
+    {
+        <div class="detail-head">
+            <div>
+                <span class="kind big">@guest.Kind</span>
+                <h1>@guest.Name <span class="vmid">#@guest.VmId</span></h1>
+                <span class="pill @(guest.IsRunning ? "on" : "off")">@guest.Status</span>
+            </div>
+            <div class="actions">
+                @if (guest.IsRunning)
+                {
+                    <button class="btn sm" disabled="@busy" @onclick='() => Act("reboot")'>Restart</button>
+                    <button class="btn sm danger" disabled="@busy" @onclick='() => Act("shutdown")'>Stop</button>
+                }
+                else
+                {
+                    <button class="btn sm go" disabled="@busy" @onclick='() => Act("start")'>Start</button>
+                }
+            </div>
+        </div>
+
+        <section class="info-grid">
+            <div><span class="label">Node</span><span class="val">@guest.Node</span></div>
+            <div><span class="label">Typ</span><span class="val">@guest.Type (@guest.Kind)</span></div>
+            <div><span class="label">IP</span><span class="val">@(guest.Ip ?? "–")</span></div>
+            <div><span class="label">CPU</span><span class="val">@Format.Pct(guest.CpuFraction)</span></div>
+            <div><span class="label">RAM</span><span class="val">@Format.Bytes(guest.MemUsed) / @Format.Bytes(guest.MemMax)</span></div>
+            <div><span class="label">Disk</span><span class="val">@Format.Bytes(guest.DiskUsed) / @Format.Bytes(guest.DiskMax)</span></div>
+            <div><span class="label">Uptime</span><span class="val">@Format.Uptime(guest.Uptime)</span></div>
+        </section>
+
+        <h2>Links</h2>
+        <div class="links-list">
+            <a class="link-card" href="@PveUiUrl" target="_blank" rel="noopener">
+                <strong>Proxmox öffnen ↗</strong>
+                <span class="muted">Verwaltung / Konsole im PVE-Webinterface</span>
+            </a>
+
+            @if (relatedHosts.Count > 0)
+            {
+                @foreach (var h in relatedHosts)
+                {
+                    @foreach (var d in h.DomainNames)
+                    {
+                        <a class="link-card" href="https://@d" target="_blank" rel="noopener">
+                            <strong>@d ↗</strong>
+                            <span class="muted">bedient von dieser Ressource (Port @h.ForwardPort)</span>
+                        </a>
+                    }
+                }
+            }
+            else if (guest.Ip is not null)
+            {
+                <div class="link-card muted-card">Keine NPM-Domain zeigt auf @guest.Ip.</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int VmId { get; set; }
+
+    private PveGuest? guest;
+    private List<NpmHost> relatedHosts = [];
+    private bool loading = true;
+    private bool busy;
+
+    private string PveUiUrl => PveOpt.Value.BaseUrl.Replace("/api2/json", "");
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        loading = true;
+        StateHasChanged();
+        var guests = await Pve.GetGuestsAsync();
+        guest = guests.FirstOrDefault(g => g.VmId == VmId);
+        if (guest?.Ip is not null)
+        {
+            var hosts = await Npm.GetHostsAsync();
+            relatedHosts = hosts.Where(h => h.ForwardHost == guest.Ip).ToList();
+        }
+        else
+        {
+            relatedHosts = [];
+        }
+        loading = false;
+    }
+
+    private async Task Act(string action)
+    {
+        if (guest is null) return;
+        busy = true;
+        StateHasChanged();
+        await Pve.ActionAsync(guest.Node, guest.Type, guest.VmId, action);
+        await Task.Delay(2000);
+        await Load();
+        busy = false;
+    }
+}

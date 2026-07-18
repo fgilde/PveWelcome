@@ -1,0 +1,151 @@
+@page "/dashboard"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject PveClient Pve
+@inject NpmClient Npm
+
+<PageTitle>Dashboard</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <div class="page-head">
+        <h1>Dashboard</h1>
+        <button class="btn btn-ghost sm" @onclick="Load" disabled="@loading">@(loading ? "…" : "↻ Refresh")</button>
+    </div>
+
+    @if (health is not null)
+    {
+        <section class="health">
+            <div class="metric">
+                <span class="label">Node</span>
+                <span class="val">@health.Node</span>
+            </div>
+            <div class="metric">
+                <span class="label">CPU</span>
+                <span class="val">@Format.Pct(health.CpuFraction)</span>
+                <div class="bar"><i style="width:@(Math.Min(100, health.CpuFraction*100))%"></i></div>
+            </div>
+            <div class="metric">
+                <span class="label">RAM</span>
+                <span class="val">@Format.Bytes(health.MemUsed) / @Format.Bytes(health.MemMax)</span>
+                <div class="bar"><i style="width:@(health.MemMax>0 ? health.MemUsed*100.0/health.MemMax : 0)%"></i></div>
+            </div>
+            <div class="metric">
+                <span class="label">Load</span>
+                <span class="val">@health.LoadAvg1.ToString("0.00")</span>
+            </div>
+            <div class="metric">
+                <span class="label">Uptime</span>
+                <span class="val">@Format.Uptime(health.Uptime)</span>
+            </div>
+        </section>
+    }
+
+    <h2>Ressourcen</h2>
+    @if (loading && guests.Count == 0)
+    {
+        <p class="muted">Lade…</p>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var g in guests)
+            {
+                <div class="card @(g.IsRunning ? "up" : "down")">
+                    <a class="card-head" href="/resource/@g.VmId">
+                        <span class="kind">@g.Kind</span>
+                        <span class="name">@g.Name</span>
+                        <span class="vmid">#@g.VmId</span>
+                    </a>
+                    <div class="status">
+                        <span class="pill @(g.IsRunning ? "on" : "off")">@g.Status</span>
+                        @if (g.Ip is not null)
+                        {
+                            <span class="ip">@g.Ip</span>
+                        }
+                    </div>
+                    @if (g.IsRunning)
+                    {
+                        <div class="mini">
+                            <span>CPU @Format.Pct(g.CpuFraction)</span>
+                            <span>RAM @Format.Bytes(g.MemUsed)/@Format.Bytes(g.MemMax)</span>
+                        </div>
+                    }
+                    <div class="actions">
+                        @if (g.IsRunning)
+                        {
+                            <button class="btn xs" disabled="@IsBusy(g)" @onclick='() => Act(g, "reboot")'>Restart</button>
+                            <button class="btn xs danger" disabled="@IsBusy(g)" @onclick='() => Act(g, "shutdown")'>Stop</button>
+                        }
+                        else
+                        {
+                            <button class="btn xs go" disabled="@IsBusy(g)" @onclick='() => Act(g, "start")'>Start</button>
+                        }
+                        <a class="btn xs ghost" href="/resource/@g.VmId">Details →</a>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <h2>NPM Bindings <span class="count">@hosts.Count</span></h2>
+    <div class="bindings">
+        @foreach (var h in hosts.OrderBy(h => h.DomainNames.FirstOrDefault()))
+        {
+            <div class="binding @(h.Enabled ? "" : "disabled")">
+                <div class="domains">
+                    @foreach (var d in h.DomainNames)
+                    {
+                        <a href="https://@d" target="_blank" rel="noopener">@d ↗</a>
+                    }
+                </div>
+                <div class="target">→ @h.ForwardScheme://@h.ForwardHost:@h.ForwardPort</div>
+                <div class="flags">
+                    @if (!h.Enabled)
+                    {
+                        <span class="pill off">disabled</span>
+                    }
+                    else
+                    {
+                        <span class="pill @(h.Online ? "on" : "warn")">@(h.Online ? "online" : "offline")</span>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private NodeStatus? health;
+    private List<PveGuest> guests = [];
+    private List<NpmHost> hosts = [];
+    private bool loading = true;
+    private string? busyKey;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private bool IsBusy(PveGuest g) => busyKey == Key(g);
+    private static string Key(PveGuest g) => $"{g.Type}-{g.VmId}";
+
+    private async Task Load()
+    {
+        loading = true;
+        StateHasChanged();
+        var nodes = await Pve.GetNodesAsync();
+        if (nodes.Count > 0) health = await Pve.GetNodeStatusAsync(nodes[0]);
+        guests = await Pve.GetGuestsAsync();
+        hosts = await Npm.GetHostsAsync();
+        loading = false;
+    }
+
+    private async Task Act(PveGuest g, string action)
+    {
+        busyKey = Key(g);
+        StateHasChanged();
+        await Pve.ActionAsync(g.Node, g.Type, g.VmId, action);
+        await Task.Delay(2000);
+        await Load();
+        busyKey = null;
+    }
+}
