@@ -97,7 +97,8 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
                 var vmid = (int)v.GetDouble();
                 var ctime = b.TryGetProperty("ctime", out var ct) ? ct.GetInt64() : 0;
                 var size = b.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
-                var info = new BackupInfo(vmid, DateTimeOffset.FromUnixTimeSeconds(ctime), size);
+                var volid = b.TryGetProperty("volid", out var vo) ? vo.GetString() ?? "" : "";
+                var info = new BackupInfo(vmid, DateTimeOffset.FromUnixTimeSeconds(ctime), size, volid);
                 if (!map.TryGetValue(vmid, out var cur) || info.Time > cur.Time) map[vmid] = info;
             }
         }
@@ -225,5 +226,25 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
             return res.IsSuccessStatusCode;
         }
         catch (Exception ex) { log.LogWarning(ex, "backup {Vmid} -> {Storage}", vmid, storage); return false; }
+    }
+
+    /// Restore a guest IN PLACE from a backup volume (DESTRUCTIVE: overwrites the guest, force=1).
+    /// Returns null on success, else an error message. Target vmid must be stopped.
+    public async Task<string?> RestoreAsync(string node, string type, int vmid, string volid)
+    {
+        if (string.IsNullOrWhiteSpace(volid)) return "kein Backup-Volume gefunden";
+        try
+        {
+            var form = type == "qemu"
+                ? new Dictionary<string, string> { ["vmid"] = vmid.ToString(), ["archive"] = volid, ["force"] = "1" }
+                : new Dictionary<string, string> { ["vmid"] = vmid.ToString(), ["ostemplate"] = volid, ["restore"] = "1", ["force"] = "1" };
+            var req = Req(HttpMethod.Post, $"/nodes/{node}/{type}");
+            req.Content = new FormUrlEncodedContent(form);
+            using var res = await http.SendAsync(req);
+            if (res.IsSuccessStatusCode) return null;
+            var body = await res.Content.ReadAsStringAsync();
+            return $"{(int)res.StatusCode}: {body[..Math.Min(200, body.Length)]}";
+        }
+        catch (Exception ex) { log.LogWarning(ex, "restore {Vmid}", vmid); return ex.Message; }
     }
 }

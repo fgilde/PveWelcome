@@ -21,7 +21,7 @@ public record PveGuest(
 }
 
 /// Latest backup of a guest.
-public record BackupInfo(int VmId, DateTimeOffset Time, long Size);
+public record BackupInfo(int VmId, DateTimeOffset Time, long Size, string Volid = "");
 
 /// A Proxmox storage pool on the node.
 public record StorageInfo(string Name, string Type, long Total, long Used, long Avail, string Content = "")

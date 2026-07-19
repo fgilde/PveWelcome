@@ -46,6 +46,12 @@
                     <button class="btn sm go" disabled="@busy" @onclick='() => Act("start")'>Start</button>
                 }
                 <button class="btn sm" disabled="@busy" @onclick="BackupNow">Backup jetzt</button>
+                @if (Data.BackupFor(guest.VmId) is not null)
+                {
+                    <button class="btn sm danger" disabled="@(busy || guest.IsRunning)"
+                            title="@(guest.IsRunning ? "zum Wiederherstellen erst stoppen" : "aus Backup wiederherstellen (überschreibt!)")"
+                            @onclick="RestoreNow">Restore</button>
+                }
             </div>
         </div>
         @if (bkpMsg is not null)
@@ -108,6 +114,25 @@
         if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {guest.Name} auf '{target}' starten?")) return;
         var ok = await Data.TriggerBackupAsync(guest);
         bkpMsg = ok ? $"Backup → '{target}' gestartet (erscheint in ein paar Minuten)." : "Backup-Start fehlgeschlagen.";
+    }
+
+    private async Task RestoreNow()
+    {
+        if (guest is null) return;
+        if (guest.IsRunning) { bkpMsg = "Zum Wiederherstellen erst die Ressource stoppen."; return; }
+        var b = Data.BackupFor(guest.VmId);
+        if (b is null) { bkpMsg = "Kein Backup vorhanden."; return; }
+        var warn = guest.Name == "core" ? "\n\nACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!" : "";
+        var typed = await JS.InvokeAsync<string>("prompt",
+            $"WARNUNG: {guest.Name} (#{guest.VmId}) wird KOMPLETT mit dem Backup vom {b.Time.LocalDateTime:yyyy-MM-dd HH:mm} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{warn}\n\nZum Bestätigen den Namen exakt tippen: {guest.Name}");
+        if (typed != guest.Name) { bkpMsg = "Restore abgebrochen (Name nicht bestätigt)."; return; }
+        busy = true;
+        StateHasChanged();
+        var err = await Data.RestoreAsync(guest);
+        busy = false;
+        bkpMsg = err is null
+            ? "Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten)."
+            : $"Restore fehlgeschlagen: {err}";
     }
 
     private string PveUiUrl => Conn.Current.PveBaseUrl.Replace("/api2/json", "");

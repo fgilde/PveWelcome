@@ -94,6 +94,16 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
         return await pve.TriggerBackupAsync(g.Node, g.VmId, storage);
     }
 
+    /// DESTRUCTIVE in-place restore of a guest from its latest backup. Returns null on success, else error.
+    public async Task<string?> RestoreAsync(PveGuest g)
+    {
+        var b = BackupFor(g.VmId);
+        if (b is null || string.IsNullOrEmpty(b.Volid)) return "kein Backup vorhanden";
+        using var scope = scopeFactory.CreateScope();
+        var pve = scope.ServiceProvider.GetRequiredService<PveClient>();
+        return await pve.RestoreAsync(g.Node, g.Type, g.VmId, b.Volid);
+    }
+
     /// Real external reachability of each served domain (GET https://domain via Cloudflare).
     private async Task<Dictionary<string, bool>> CheckDomainsAsync(IReadOnlyList<NpmHost> hosts)
     {
