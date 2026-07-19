@@ -29,29 +29,23 @@ builder.Services.AddDataProtection()
 builder.Services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
 builder.Services.AddScoped<UserService>();
 
-// --- Options ---
-builder.Services.Configure<PveOptions>(builder.Configuration.GetSection("Pve"));
-builder.Services.Configure<NpmOptions>(builder.Configuration.GetSection("Npm"));
+// --- Config + services ---
+builder.Services.AddSingleton<ConnectionConfig>();
 builder.Services.AddSingleton<BrandResolver>();
 builder.Services.AddSingleton<PveDataService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PveDataService>());
 
-// --- API clients ---
-builder.Services.AddHttpClient<PveClient>((sp, c) =>
-{
-    var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PveOptions>>().Value;
-    // trailing slash so relative paths append instead of replacing /api2/json
-    if (!string.IsNullOrWhiteSpace(o.BaseUrl)) c.BaseAddress = new Uri(o.BaseUrl.TrimEnd('/') + "/");
-    // Proxmox expects: Authorization: PVEAPIToken=USER@REALM!TOKENID=SECRET  (note the '=', not a space)
-    if (!string.IsNullOrWhiteSpace(o.ApiToken))
-        c.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"PVEAPIToken={o.ApiToken}");
-    c.Timeout = TimeSpan.FromSeconds(15);
-}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-{
-    // PVE uses a self-signed cert on the internal network.
-    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-});
+// --- API clients (base url + creds come from ConnectionConfig at runtime) ---
+builder.Services.AddHttpClient<PveClient>(c => c.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        // PVE uses a self-signed cert on the internal network.
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    });
 builder.Services.AddHttpClient<NpmClient>(c => c.Timeout = TimeSpan.FromSeconds(15));
+// external reachability checks for served domains (real end-to-end, via Cloudflare)
+builder.Services.AddHttpClient("reach", c => c.Timeout = TimeSpan.FromSeconds(8))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 
 // --- Auth ---
 builder.Services.AddHttpContextAccessor();
@@ -78,6 +72,7 @@ using (var scope = app.Services.CreateScope())
         app.Configuration["Admin:User"] ?? app.Configuration["ADMIN_USER"],
         app.Configuration["Admin:Password"] ?? app.Configuration["ADMIN_PASSWORD"]);
 }
+await app.Services.GetRequiredService<ConnectionConfig>().InitAsync(app.Configuration);
 await app.Services.GetRequiredService<BrandResolver>().InitAsync(app.Configuration);
 
 if (!app.Environment.IsDevelopment())

@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text.Json;
 using PveWelcome.Models;
 
@@ -12,19 +11,30 @@ public class PveOptions
     public string ApiToken { get; set; } = "";
 }
 
-public class PveClient(HttpClient http, ILogger<PveClient> log)
+public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClient> log)
 {
     private static readonly JsonSerializerOptions J = new(JsonSerializerDefaults.Web);
 
+    public bool Configured => !string.IsNullOrWhiteSpace(config.Current.PveBaseUrl);
+
+    private string Url(string path) => $"{config.Current.PveBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+
+    private HttpRequestMessage Req(HttpMethod method, string path)
+    {
+        var req = new HttpRequestMessage(method, Url(path));
+        // Proxmox: Authorization: PVEAPIToken=USER@REALM!TOKENID=SECRET  (note '=', not a space)
+        if (!string.IsNullOrWhiteSpace(config.Current.PveApiToken))
+            req.Headers.TryAddWithoutValidation("Authorization", $"PVEAPIToken={config.Current.PveApiToken}");
+        return req;
+    }
+
     private async Task<JsonElement> GetDataAsync(string path)
     {
-        using var res = await http.GetAsync(path.TrimStart('/'));
+        using var res = await http.SendAsync(Req(HttpMethod.Get, path));
         res.EnsureSuccessStatusCode();
         var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync());
         return doc.RootElement.GetProperty("data").Clone();
     }
-
-    public bool Configured => http.BaseAddress is not null;
 
     public async Task<List<string>> GetNodesAsync()
     {
@@ -71,6 +81,27 @@ public class PveClient(HttpClient http, ILogger<PveClient> log)
                 .ToList();
         }
         catch (Exception ex) { log.LogWarning(ex, "storages {Node}", node); return []; }
+    }
+
+    /// Latest backup per vmid, from the given dir/backup storage.
+    public async Task<Dictionary<int, BackupInfo>> GetBackupsAsync(string node, string storage = "local")
+    {
+        var map = new Dictionary<int, BackupInfo>();
+        try
+        {
+            var data = await GetDataAsync($"/nodes/{node}/storage/{storage}/content?content=backup");
+            foreach (var b in data.EnumerateArray())
+            {
+                if (!b.TryGetProperty("vmid", out var v)) continue;
+                var vmid = (int)v.GetDouble();
+                var ctime = b.TryGetProperty("ctime", out var ct) ? ct.GetInt64() : 0;
+                var size = b.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
+                var info = new BackupInfo(vmid, DateTimeOffset.FromUnixTimeSeconds(ctime), size);
+                if (!map.TryGetValue(vmid, out var cur) || info.Time > cur.Time) map[vmid] = info;
+            }
+        }
+        catch (Exception ex) { log.LogWarning(ex, "backups {Node}/{Storage}", node, storage); }
+        return map;
     }
 
     public async Task<List<PveGuest>> GetGuestsAsync(bool withIp = true)
@@ -166,10 +197,9 @@ public class PveClient(HttpClient http, ILogger<PveClient> log)
 
     public async Task<bool> ActionAsync(string node, string type, int vmid, string action)
     {
-        // action: start | stop | reboot | shutdown
         try
         {
-            using var res = await http.PostAsync($"nodes/{node}/{type}/{vmid}/status/{action}", null);
+            using var res = await http.SendAsync(Req(HttpMethod.Post, $"/nodes/{node}/{type}/{vmid}/status/{action}"));
             return res.IsSuccessStatusCode;
         }
         catch (Exception ex) { log.LogWarning(ex, "action {Action} {Vmid}", action, vmid); return false; }

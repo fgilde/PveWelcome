@@ -2,13 +2,34 @@
 @attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 @inject BrandResolver Brands
+@inject ConnectionConfig Conn
+@inject PveDataService Data
 
 <PageTitle>Einstellungen</PageTitle>
 
 <TopBar />
 
 <div class="page-wrap">
-    <h1>Einstellungen — Welcome-Seiten</h1>
+    <h1>Einstellungen</h1>
+
+    <h2>Verbindungen (PVE &amp; NPM)</h2>
+    <p class="muted">Wohin das Tool zugreift. So können auch andere es auf ihre eigene Proxmox/NPM-Instanz zeigen.</p>
+    <div class="settings-card">
+        <div class="settings-grid">
+            <label>PVE API-URL<input @bind="conn.PveBaseUrl" placeholder="https://host:8006/api2/json" /></label>
+            <label>PVE API-Token<input type="password" @bind="conn.PveApiToken" placeholder="user@realm!id=secret" /></label>
+            <label>NPM URL<input @bind="conn.NpmBaseUrl" placeholder="http://host:81" /></label>
+            <label>NPM Benutzer<input @bind="conn.NpmUser" /></label>
+            <label>NPM Passwort<input type="password" @bind="conn.NpmPassword" /></label>
+        </div>
+        <button class="btn sm go" @onclick="SaveConn">Speichern &amp; neu laden</button>
+        @if (connMsg is not null)
+        {
+            <span class="muted" style="margin-left:1rem">@connMsg</span>
+        }
+    </div>
+
+    <h2>Welcome-Seiten</h2>
     <p class="muted">Pro Domain: Name, Tagline, Akzentfarbe und der externe Link. Host <code>default</code> greift, wenn keine Domain passt.</p>
 
     @foreach (var b in brands)
@@ -43,8 +64,26 @@
     private string newHost = "";
     private string newName = "";
     private string? msg;
+    private ConnectionSettings conn = new();
+    private string? connMsg;
 
-    protected override async Task OnInitializedAsync() => brands = await Brands.GetAllAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        brands = await Brands.GetAllAsync();
+        var c = Conn.Current;
+        conn = new ConnectionSettings
+        {
+            Id = c.Id, PveBaseUrl = c.PveBaseUrl, PveApiToken = c.PveApiToken,
+            NpmBaseUrl = c.NpmBaseUrl, NpmUser = c.NpmUser, NpmPassword = c.NpmPassword
+        };
+    }
+
+    private async Task SaveConn()
+    {
+        await Conn.SaveAsync(conn);
+        await Data.RefreshAsync();
+        connMsg = "Gespeichert. Daten werden neu geladen.";
+    }
 
     private async Task Save(BrandConfig b)
     {

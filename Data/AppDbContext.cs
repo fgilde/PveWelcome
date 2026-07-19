@@ -7,6 +7,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 {
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<BrandConfig> Brands => Set<BrandConfig>();
+    public DbSet<ConnectionSettings> Connections => Set<ConnectionSettings>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

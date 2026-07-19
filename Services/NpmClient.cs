@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
 using PveWelcome.Models;
 
 namespace PveWelcome.Services;
@@ -14,9 +13,9 @@ public class NpmOptions
     public string Password { get; set; } = "";
 }
 
-public class NpmClient(HttpClient http, IOptions<NpmOptions> options, ILogger<NpmClient> log)
+public class NpmClient(HttpClient http, ConnectionConfig config, ILogger<NpmClient> log)
 {
-    private readonly NpmOptions opt = options.Value;
+    private string BaseUrl => config.Current.NpmBaseUrl;
     private string? _token;
     private DateTime _tokenExpiry = DateTime.MinValue;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -28,8 +27,8 @@ public class NpmClient(HttpClient http, IOptions<NpmOptions> options, ILogger<Np
         try
         {
             if (_token is not null && DateTime.UtcNow < _tokenExpiry) return _token;
-            using var res = await http.PostAsJsonAsync($"{opt.BaseUrl}/api/tokens",
-                new { identity = opt.User, secret = opt.Password });
+            using var res = await http.PostAsJsonAsync($"{BaseUrl}/api/tokens",
+                new { identity = config.Current.NpmUser, secret = config.Current.NpmPassword });
             if (!res.IsSuccessStatusCode) { log.LogWarning("npm login {Code}", res.StatusCode); return null; }
             var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync());
             _token = doc.RootElement.GetProperty("token").GetString();
@@ -42,12 +41,12 @@ public class NpmClient(HttpClient http, IOptions<NpmOptions> options, ILogger<Np
 
     public async Task<List<NpmHost>> GetHostsAsync()
     {
-        if (string.IsNullOrWhiteSpace(opt.BaseUrl)) return [];
+        if (string.IsNullOrWhiteSpace(BaseUrl)) return [];
         var token = await GetTokenAsync();
         if (token is null) return [];
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"{opt.BaseUrl}/api/nginx/proxy-hosts");
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/api/nginx/proxy-hosts");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             using var res = await http.SendAsync(req);
             res.EnsureSuccessStatusCode();
@@ -92,12 +91,12 @@ public class NpmClient(HttpClient http, IOptions<NpmOptions> options, ILogger<Np
 
     private async Task<bool> SendAsync(HttpMethod method, string path, object? body)
     {
-        if (string.IsNullOrWhiteSpace(opt.BaseUrl)) return false;
+        if (string.IsNullOrWhiteSpace(BaseUrl)) return false;
         var token = await GetTokenAsync();
         if (token is null) return false;
         try
         {
-            using var req = new HttpRequestMessage(method, $"{opt.BaseUrl}{path}");
+            using var req = new HttpRequestMessage(method, $"{BaseUrl}{path}");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             if (body is not null) req.Content = JsonContent.Create(body);
             using var res = await http.SendAsync(req);

@@ -16,11 +16,22 @@
         <div class="head-right">
             @if (Data.LastUpdated != default)
             {
-                <span class="muted stamp">@(Data.Refreshing ? "aktualisiert…" : $"Stand {Data.LastUpdated:HH:mm:ss}")</span>
+                <span class="muted stamp">@(Data.Refreshing ? "aktualisiert…" : $"vor {Ago()}")</span>
             }
             <button class="btn btn-ghost sm" @onclick="Refresh" disabled="@Data.Refreshing">↻ Refresh</button>
         </div>
     </div>
+
+    @{ var alerts = Alerts(); }
+    @if (alerts.Count > 0)
+    {
+        <div class="alerts">
+            @foreach (var a in alerts)
+            {
+                <div class="alert">⚠ @a</div>
+            }
+        </div>
+    }
 
     @if (Data.Health is not null)
     {
@@ -33,6 +44,11 @@
                 <div class="bar"><i style="width:@(h.MemMax>0 ? h.MemUsed*100.0/h.MemMax : 0)%"></i></div></div>
             <div class="metric"><span class="label">Load</span><span class="val">@h.LoadAvg1.ToString("0.00")</span></div>
             <div class="metric"><span class="label">Uptime</span><span class="val">@Format.Uptime(h.Uptime)</span></div>
+            <div class="metric">
+                <span class="label">RAM zugew.</span>
+                <span class="val">@Format.Bytes(AllocatedRam()) / @Format.Bytes(h.MemMax)</span>
+                <span class="sub muted">@Data.Guests.Count(g => g.IsRunning)/@Data.Guests.Count Guests laufen</span>
+            </div>
         </section>
     }
 
@@ -88,6 +104,10 @@
                             <span>Disk @Format.Bytes(g.DiskUsed)/@Format.Bytes(g.DiskMax)</span>
                         </div>
                     }
+                    @{ var bk = Data.BackupFor(g.VmId); }
+                    <div class="bkp @(bk is null ? "none" : "")">
+                        @(bk is null ? "kein Backup" : $"Backup {bk.Time.LocalDateTime:dd.MM HH:mm}")
+                    </div>
                     <div class="actions">
                         @if (g.IsRunning)
                         {
@@ -105,10 +125,11 @@
         </div>
     }
 
-    <h2>NPM Bindings <span class="count">@Data.Hosts.Count</span></h2>
+    <h2>NPM Bindings <span class="count @(DomainsUp() == DomainsTotal() ? "ok" : "warn")">@DomainsUp()/@DomainsTotal() extern online</span></h2>
     <div class="bindings">
         @foreach (var host in Data.Hosts.OrderBy(h => h.DomainNames.FirstOrDefault()))
         {
+            var up = host.DomainNames.Any(d => Data.DomainUp.TryGetValue(d, out var u) && u);
             <div class="binding @(host.Enabled ? "" : "disabled")">
                 <div class="domains">
                     @foreach (var d in host.DomainNames)
@@ -124,7 +145,7 @@
                     }
                     else
                     {
-                        <span class="pill @(host.Online ? "on" : "warn")">@(host.Online ? "online" : "offline")</span>
+                        <span class="pill @(up ? "on" : "warn")">@(up ? "online" : "nicht erreichbar")</span>
                     }
                 </div>
             </div>
@@ -135,13 +156,40 @@
 @code {
     private string? busyKey;
 
+    private System.Threading.Timer? _ticker;
+
     protected override async Task OnInitializedAsync()
     {
         Data.Changed += OnChanged;
+        _ticker = new System.Threading.Timer(_ => InvokeAsync(StateHasChanged), null, 5000, 5000);
         if (Data.LastUpdated == default) await Data.RefreshAsync();
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private string Ago()
+    {
+        var s = (int)(DateTime.Now - Data.LastUpdated).TotalSeconds;
+        return s < 60 ? $"{s}s" : $"{s / 60}m {s % 60}s";
+    }
+
+    private long AllocatedRam() => Data.Guests.Sum(g => g.MemMax);
+
+    private int DomainsTotal() => Data.DomainUp.Count;
+    private int DomainsUp() => Data.DomainUp.Count(kv => kv.Value);
+
+    private List<string> Alerts()
+    {
+        var list = new List<string>();
+        foreach (var s in Data.Storages.Where(s => s.Fraction > 0.90))
+            list.Add($"Storage '{s.Name}' ist zu {Format.Pct(s.Fraction)} voll");
+        foreach (var g in Data.Guests.Where(g => !g.IsRunning))
+            list.Add($"{g.Kind} {g.Name} (#{g.VmId}) ist gestoppt");
+        var noBackup = Data.Guests.Count(g => Data.BackupFor(g.VmId) is null);
+        if (Data.Backups.Count > 0 && noBackup > 0)
+            list.Add($"{noBackup} Guest(s) ohne Backup");
+        return list;
+    }
 
     private static string ServedTooltip(List<NpmHost> hosts) =>
         string.Join("\n", hosts.Select(h => $"{string.Join(", ", h.DomainNames)}  (:{h.ForwardPort}, {(h.Online ? "online" : "offline")})"));
@@ -167,5 +215,9 @@
         busyKey = null;
     }
 
-    public void Dispose() => Data.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Data.Changed -= OnChanged;
+        _ticker?.Dispose();
+    }
 }

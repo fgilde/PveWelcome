@@ -5,7 +5,7 @@
 @inject PveDataService Data
 @inject PveClient Pve
 @inject IJSRuntime JS
-@inject Microsoft.Extensions.Options.IOptions<PveOptions> PveOpt
+@inject ConnectionConfig Conn
 
 <PageTitle>@(guest?.Name ?? "Resource")</PageTitle>
 
@@ -57,6 +57,7 @@
             <div><span class="label">Disk</span><span class="val">@Format.Bytes(guest.DiskUsed) / @Format.Bytes(guest.DiskMax)</span></div>
             <div><span class="label">Uptime</span><span class="val">@Format.Uptime(guest.Uptime)</span></div>
             <div><span class="label">Bedient</span><span class="val">@served.Count Domain(s)</span></div>
+            <div><span class="label">Backup</span><span class="val">@BackupText()</span></div>
         </section>
 
         <h2>Links</h2>
@@ -93,7 +94,7 @@
     private PveGuest? guest;
     private bool busy;
 
-    private string PveUiUrl => PveOpt.Value.BaseUrl.Replace("/api2/json", "");
+    private string PveUiUrl => Conn.Current.PveBaseUrl.Replace("/api2/json", "");
 
     protected override async Task OnInitializedAsync()
     {
@@ -105,6 +106,12 @@
     protected override void OnParametersSet() => Resolve();
 
     private void Resolve() => guest = Data.Guests.FirstOrDefault(g => g.VmId == VmId);
+
+    private string BackupText()
+    {
+        var b = Data.BackupFor(VmId);
+        return b is null ? "– (keins)" : $"{b.Time.LocalDateTime:yyyy-MM-dd HH:mm} · {Format.Bytes(b.Size)}";
+    }
 
     private void OnChanged() => InvokeAsync(() => { Resolve(); StateHasChanged(); });
 
