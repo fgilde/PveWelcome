@@ -10,6 +10,7 @@ public class PveDataService(IServiceScopeFactory scopeFactory, ILogger<PveDataSe
 
     public NodeStatus? Health { get; private set; }
     public IReadOnlyList<PveGuest> Guests { get; private set; } = [];
+    public IReadOnlyList<StorageInfo> Storages { get; private set; } = [];
     public IReadOnlyList<NpmHost> Hosts { get; private set; } = [];
     public DateTime LastUpdated { get; private set; }
     public bool Refreshing { get; private set; }
@@ -35,7 +36,11 @@ public class PveDataService(IServiceScopeFactory scopeFactory, ILogger<PveDataSe
             var npm = scope.ServiceProvider.GetRequiredService<NpmClient>();
 
             var nodes = await pve.GetNodesAsync();
-            Health = nodes.Count > 0 ? await pve.GetNodeStatusAsync(nodes[0]) : null;
+            if (nodes.Count > 0)
+            {
+                Health = await pve.GetNodeStatusAsync(nodes[0]);
+                Storages = await pve.GetStoragesAsync(nodes[0]);
+            }
             Guests = await pve.GetGuestsAsync();
             Hosts = await npm.GetHostsAsync();
             LastUpdated = DateTime.Now;

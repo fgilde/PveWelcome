@@ -54,6 +54,25 @@ public class PveClient(HttpClient http, ILogger<PveClient> log)
         catch (Exception ex) { log.LogWarning(ex, "node status {Node}", node); return null; }
     }
 
+    public async Task<List<StorageInfo>> GetStoragesAsync(string node)
+    {
+        try
+        {
+            var data = await GetDataAsync($"/nodes/{node}/storage");
+            return data.EnumerateArray()
+                .Where(s => !s.TryGetProperty("active", out var a) || a.GetInt32() == 1)
+                .Select(s => new StorageInfo(
+                    s.GetProperty("storage").GetString() ?? "",
+                    s.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "",
+                    s.TryGetProperty("total", out var tot) ? tot.GetInt64() : 0,
+                    s.TryGetProperty("used", out var u) ? u.GetInt64() : 0,
+                    s.TryGetProperty("avail", out var av) ? av.GetInt64() : 0))
+                .OrderByDescending(s => s.Total)
+                .ToList();
+        }
+        catch (Exception ex) { log.LogWarning(ex, "storages {Node}", node); return []; }
+    }
+
     public async Task<List<PveGuest>> GetGuestsAsync(bool withIp = true)
     {
         var guests = new List<PveGuest>();

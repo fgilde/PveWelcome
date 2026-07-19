@@ -122,6 +122,10 @@ a { color: inherit; text-decoration: none; }
 .metric .val { font-size: 1.2rem; font-weight: 700; }
 .bar { height: 5px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--accent); }
+.bar.hot i { background: var(--bad); }
+.metric small { color: var(--muted); font-weight: 400; font-size: .7rem; text-transform: uppercase; }
+.metric .sub { font-size: .72rem; }
+.storage .metric .label { font-family: ui-monospace, monospace; }
 
 /* guest grid */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }

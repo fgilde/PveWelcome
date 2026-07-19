@@ -20,6 +20,12 @@ public record PveGuest(
     public string Kind => Type == "qemu" ? "VM" : "CT";
 }
 
+/// A Proxmox storage pool on the node.
+public record StorageInfo(string Name, string Type, long Total, long Used, long Avail)
+{
+    public double Fraction => Total > 0 ? (double)Used / Total : 0;
+}
+
 /// Health of a Proxmox node.
 public record NodeStatus(
     string Node,

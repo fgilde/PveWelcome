@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject PveDataService Data
 @inject PveClient Pve
+@inject IJSRuntime JS
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -32,6 +33,22 @@
                 <div class="bar"><i style="width:@(h.MemMax>0 ? h.MemUsed*100.0/h.MemMax : 0)%"></i></div></div>
             <div class="metric"><span class="label">Load</span><span class="val">@h.LoadAvg1.ToString("0.00")</span></div>
             <div class="metric"><span class="label">Uptime</span><span class="val">@Format.Uptime(h.Uptime)</span></div>
+        </section>
+    }
+
+    @if (Data.Storages.Count > 0)
+    {
+        <h2>Storage</h2>
+        <section class="health storage">
+            @foreach (var s in Data.Storages)
+            {
+                <div class="metric">
+                    <span class="label">@s.Name <small>@s.Type</small></span>
+                    <span class="val">@Format.Bytes(s.Used) / @Format.Bytes(s.Total)</span>
+                    <div class="bar @(s.Fraction > 0.85 ? "hot" : "")"><i style="width:@(Math.Min(100, s.Fraction*100))%"></i></div>
+                    <span class="sub muted">@Format.Bytes(s.Avail) frei · @Format.Pct(s.Fraction)</span>
+                </div>
+            }
         </section>
     }
 
@@ -68,6 +85,7 @@
                         <div class="mini">
                             <span>CPU @Format.Pct(g.CpuFraction)</span>
                             <span>RAM @Format.Bytes(g.MemUsed)/@Format.Bytes(g.MemMax)</span>
+                            <span>Disk @Format.Bytes(g.DiskUsed)/@Format.Bytes(g.DiskMax)</span>
                         </div>
                     }
                     <div class="actions">
@@ -135,6 +153,12 @@
 
     private async Task Act(PveGuest g, string action)
     {
+        if (action is "shutdown" or "reboot")
+        {
+            var verb = action == "shutdown" ? "stoppen" : "neu starten";
+            var warn = g.Name == "core" ? " ⚠ core hostet Proxy + Tunnel — dann ist ALLES (auch diese Seite) offline!" : "";
+            if (!await JS.InvokeAsync<bool>("confirm", $"{g.Kind} {g.Name} wirklich {verb}?{warn}")) return;
+        }
         busyKey = Key(g);
         StateHasChanged();
         await Pve.ActionAsync(g.Node, g.Type, g.VmId, action);

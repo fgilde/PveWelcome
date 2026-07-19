@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject PveDataService Data
 @inject PveClient Pve
+@inject IJSRuntime JS
 @inject Microsoft.Extensions.Options.IOptions<PveOptions> PveOpt
 
 <PageTitle>@(guest?.Name ?? "Resource")</PageTitle>
@@ -110,6 +111,12 @@
     private async Task Act(string action)
     {
         if (guest is null) return;
+        if (action is "shutdown" or "reboot")
+        {
+            var verb = action == "shutdown" ? "stoppen" : "neu starten";
+            var warn = guest.Name == "core" ? " ⚠ core hostet Proxy + Tunnel — dann ist ALLES offline!" : "";
+            if (!await JS.InvokeAsync<bool>("confirm", $"{guest.Kind} {guest.Name} wirklich {verb}?{warn}")) return;
+        }
         busy = true;
         StateHasChanged();
         await Pve.ActionAsync(guest.Node, guest.Type, guest.VmId, action);
