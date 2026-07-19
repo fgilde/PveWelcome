@@ -25,6 +25,9 @@ Proxmox/NPM APIs server-side — the browser never sees a token.
 - **Branding** — a per-domain landing page (name, tagline, accent color, link) from the DB.
 - **Everything configurable in the UI** — PVE/NPM access, backup target, notifications, users, branding under `/admin`.
 
+<img width="1943" height="1221" alt="image" src="https://github.com/user-attachments/assets/935b6ae6-76e2-4290-8a8b-88d4ef7b1ccb" />
+
+
 ## Requirements
 
 - A Proxmox VE (8.x) with an **API token** (`Datacenter → Permissions → API Tokens`):
@@ -76,6 +79,9 @@ dotnet publish -c Release --os linux --arch x64 -t:PublishContainer -p:Container
 ```
 
 ## Configuration
+
+<img width="1938" height="1239" alt="image" src="https://github.com/user-attachments/assets/7946d2ae-0d3e-43fd-a2e1-e7faba6cfa02" />
+
 
 Everything via env (or `appsettings.json`); double `__` = nested section. After the first start
 most of it is also editable in the UI under **`/admin/settings → Connections`** (DB-backed) —
