@@ -14,16 +14,21 @@ Proxmox-/NPM-APIs serverseitig — der Browser sieht keine Tokens.
 
 ## Features
 
-- **Node-Health** — CPU, RAM, Load, Uptime, Storage-Pools (used/total), Verlaufs-Sparklines.
-- **Guests als Kacheln** — Live-Status, Start/Stop/Restart (harte Sicherheitsabfrage), CPU/RAM/Disk.
+- **Node-Health** — CPU, RAM, Load, Uptime, Storage-Pools (used/total), Verlaufs-Sparklines, anstehende Updates.
+- **Guests als Kacheln** — Live-Status, Start/Stop/Restart (harte Sicherheitsabfrage), CPU/RAM/Disk, noVNC-Konsole per Klick.
 - **Backups** — letztes Backup je Guest, **Backup jetzt** und **Restore** (destruktiv, mit Namens-Bestätigung).
 - **Snapshots** — pro Guest anlegen / zurückrollen / löschen.
-- **Aktivitäts-Feed** — letzte PVE-Tasks (Backup/Restore/Start/Stop) mit Live-Status.
-- **NPM-Domains** — welche Domain welche Ressource bedient, plus echter externer Erreichbarkeits-Check.
-- **Alerts + Benachrichtigungen** — Pool >90 %, gestoppte Guests, Guests ohne Backup, anstehende Updates;
-  optional per Webhook/Telegram gepusht.
+- **Geplante Backup-Jobs** — die Cluster-Backup-Jobs anzeigen, mit Aktivieren/Deaktivieren-Schalter.
+- **Aktivitäts-Feed + Task-Logs** — letzte PVE-Tasks (Backup/Restore/Start/Stop) mit Live-Status; anklicken zeigt das Log.
+- **Platten-SMART** — Health je Platte, Alert wenn eine nicht `PASSED` ist.
+- **Domains + Uptime-Monitore** — welche Domain welche Ressource bedient plus echter externer Check, dazu eigene
+  beliebige HTTP-Monitore.
+- **Alerts + Benachrichtigungen** — Pool >90 %, gestoppte Guests, Guests ohne Backup, anstehende Updates, sterbende
+  Platten, Monitore down; optional per Webhook/Telegram gepusht.
+- **Sicherheit** — Cookie-Auth, optionales **TOTP-2FA** pro User, Login-Rate-Limit/Lockout.
+- **Externer Watchdog** — ein systemd-Timer auf dem Proxmox-Host pingt PveWelcome und meldet per Telegram, wenn es stirbt.
 - **Branding** — pro Domain eigene Landing-Page (Name, Tagline, Akzentfarbe, Link) aus der DB.
-- **Alles konfigurierbar in der UI** — PVE-/NPM-Zugang, Backup-Ziel, Benachrichtigungen, User, Branding unter `/admin`.
+- **Alles konfigurierbar in der UI** — PVE-/NPM-Zugang, Backup-Ziel, Benachrichtigungen, Monitore, User, 2FA, Branding unter `/admin`.
 
 ## Voraussetzungen
 

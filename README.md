@@ -14,16 +14,22 @@ Proxmox/NPM APIs server-side — the browser never sees a token.
 
 ## Features
 
-- **Node health** — CPU, RAM, load, uptime, storage pools (used/total), history sparklines.
-- **Guests as tiles** — live status, start/stop/restart (hard confirmation), CPU/RAM/disk.
+- **Node health** — CPU, RAM, load, uptime, storage pools (used/total), history sparklines, pending updates.
+- **Guests as tiles** — live status, start/stop/restart (hard confirmation), CPU/RAM/disk, one-click noVNC console.
 - **Backups** — latest backup per guest, **Backup now** and **Restore** (destructive, name confirmation).
 - **Snapshots** — create / roll back / delete per guest.
-- **Activity feed** — recent PVE tasks (backup/restore/start/stop) with live status.
-- **Domains** — which domain serves which resource, plus a real external reachability check.
-- **Alerts + notifications** — pool >90 %, stopped guests, guests without a backup, pending updates;
-  optionally pushed via webhook/Telegram.
+- **Scheduled backup jobs** — the cluster's backup jobs listed, with an enable/disable toggle.
+- **Activity feed + task logs** — recent PVE tasks (backup/restore/start/stop) with live status; click one to read its log.
+- **Disk SMART health** — per-disk health with an alert when a disk isn't `PASSED`.
+- **Domains + uptime monitors** — which domain serves which resource plus a real external check, and your own
+  arbitrary HTTP monitors.
+- **Alerts + notifications** — pool >90 %, stopped guests, guests without a backup, pending updates, dying disks,
+  monitors down; optionally pushed via webhook/Telegram.
+- **Security** — cookie auth, optional per-user **TOTP 2FA**, and login rate-limiting/lockout.
+- **External watchdog** — a systemd timer on the Proxmox host pings PveWelcome and alerts via Telegram if it dies
+  (see `scripts/pve-install.sh` output / docs).
 - **Branding** — a per-domain landing page (name, tagline, accent color, link) from the DB.
-- **Everything configurable in the UI** — PVE/NPM access, backup target, notifications, users, branding under `/admin`.
+- **Everything configurable in the UI** — PVE/NPM access, backup target, notifications, monitors, users, 2FA, branding under `/admin`.
 
 <img width="1943" height="1221" alt="image" src="https://github.com/user-attachments/assets/935b6ae6-76e2-4290-8a8b-88d4ef7b1ccb" />
 
