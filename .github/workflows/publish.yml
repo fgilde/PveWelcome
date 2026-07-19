@@ -1,0 +1,48 @@
+name: publish
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create releases
+  packages: write   # push to GHCR
+
+jobs:
+  # Docker image -> ghcr.io/<owner>/pvewelcome  (for any Docker host)
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Publish image
+        run: |
+          REPO=$(echo "${{ github.repository_owner }}/pvewelcome" | tr '[:upper:]' '[:lower:]')
+          dotnet publish PveWelcome.csproj -c Release --os linux --arch x64 -t:PublishContainer \
+            -p:ContainerRegistry=ghcr.io \
+            -p:ContainerRepository=$REPO \
+            -p:ContainerImageTags='"latest;${{ github.sha }}"'
+
+  # Self-contained linux-x64 tarball -> GitHub Release (used by the Proxmox LXC helper). Only on version tags.
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish self-contained
+        run: |
+          dotnet publish PveWelcome.csproj -c Release -r linux-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:DebugType=none -o publish
+          tar -C publish -czf pvewelcome-linux-x64.tar.gz .
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: pvewelcome-linux-x64.tar.gz
