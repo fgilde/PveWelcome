@@ -32,6 +32,7 @@ builder.Services.AddScoped<UserService>();
 // --- Config + services ---
 builder.Services.AddSingleton<ConnectionConfig>();
 builder.Services.AddSingleton<BrandResolver>();
+builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<PveDataService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PveDataService>());
 
@@ -46,6 +47,8 @@ builder.Services.AddHttpClient<NpmClient>(c => c.Timeout = TimeSpan.FromSeconds(
 // external reachability checks for served domains (real end-to-end, via Cloudflare)
 builder.Services.AddHttpClient("reach", c => c.Timeout = TimeSpan.FromSeconds(8))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+// outbound alert notifications (webhook / telegram)
+builder.Services.AddHttpClient("notify", c => c.Timeout = TimeSpan.FromSeconds(10));
 
 // --- Auth ---
 builder.Services.AddHttpContextAccessor();

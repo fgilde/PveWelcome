@@ -22,11 +22,10 @@
         </div>
     </div>
 
-    @{ var alerts = Alerts(); }
-    @if (alerts.Count > 0)
+    @if (Data.Alerts.Count > 0)
     {
         <div class="alerts">
-            @foreach (var a in alerts)
+            @foreach (var a in Data.Alerts)
             {
                 <div class="alert">⚠ @a</div>
             }
@@ -39,11 +38,19 @@
         <section class="health">
             <div class="metric"><span class="label">Node</span><span class="val">@h.Node</span></div>
             <div class="metric"><span class="label">CPU</span><span class="val">@Format.Pct(h.CpuFraction)</span>
-                <div class="bar"><i style="width:@(Math.Min(100, h.CpuFraction*100))%"></i></div></div>
+                <div class="bar"><i style="width:@(Math.Min(100, h.CpuFraction*100))%"></i></div>
+                <Sparkline Values="Data.NodeCpuHist" /></div>
             <div class="metric"><span class="label">RAM</span><span class="val">@Format.Bytes(h.MemUsed) / @Format.Bytes(h.MemMax)</span>
-                <div class="bar"><i style="width:@(h.MemMax>0 ? h.MemUsed*100.0/h.MemMax : 0)%"></i></div></div>
+                <div class="bar"><i style="width:@(h.MemMax>0 ? h.MemUsed*100.0/h.MemMax : 0)%"></i></div>
+                <Sparkline Values="Data.NodeMemHist" Color="#38bdf8" /></div>
             <div class="metric"><span class="label">Load</span><span class="val">@h.LoadAvg1.ToString("0.00")</span></div>
             <div class="metric"><span class="label">Uptime</span><span class="val">@Format.Uptime(h.Uptime)</span></div>
+            @if (Data.UpdatesAvailable > 0)
+            {
+                <div class="metric"><span class="label">Updates</span>
+                    <span class="val"><span class="pill warn">@Data.UpdatesAvailable verfügbar</span></span>
+                    <span class="sub muted">apt am Node</span></div>
+            }
             <div class="metric">
                 <span class="label">RAM zugew.</span>
                 <span class="val">@Format.Bytes(AllocatedRam()) / @Format.Bytes(h.MemMax)</span>
@@ -132,6 +139,21 @@
         </div>
     }
 
+    @if (Data.Tasks.Count > 0)
+    {
+        <h2>Aktivität</h2>
+        <div class="tasks">
+            @foreach (var t in Data.Tasks.Take(10))
+            {
+                <div class="task @(t.IsRunning ? "run" : t.Ok ? "ok" : "err")">
+                    <span class="tstate">@(t.IsRunning ? "läuft…" : t.Ok ? "✓" : "✗")</span>
+                    <span class="tt">@t.Label</span>
+                    <span class="ts muted">@t.Start.LocalDateTime.ToString("dd.MM HH:mm")</span>
+                </div>
+            }
+        </div>
+    }
+
     <h2>NPM Bindings <span class="count @(DomainsUp() == DomainsTotal() ? "ok" : "warn")">@DomainsUp()/@DomainsTotal() extern online</span></h2>
     <div class="bindings">
         @foreach (var host in Data.Hosts.OrderBy(h => h.DomainNames.FirstOrDefault()))
@@ -196,19 +218,6 @@
 
     private int DomainsTotal() => Data.DomainUp.Count;
     private int DomainsUp() => Data.DomainUp.Count(kv => kv.Value);
-
-    private List<string> Alerts()
-    {
-        var list = new List<string>();
-        foreach (var s in Data.Storages.Where(s => s.Fraction > 0.90))
-            list.Add($"Storage '{s.Name}' ist zu {Format.Pct(s.Fraction)} voll");
-        foreach (var g in Data.Guests.Where(g => !g.IsRunning))
-            list.Add($"{g.Kind} {g.Name} (#{g.VmId}) ist gestoppt");
-        var noBackup = Data.Guests.Count(g => Data.BackupFor(g.VmId) is null);
-        if (Data.Backups.Count > 0 && noBackup > 0)
-            list.Add($"{noBackup} Guest(s) ohne Backup");
-        return list;
-    }
 
     private static string ServedTooltip(List<NpmHost> hosts) =>
         string.Join("\n", hosts.Select(h => $"{string.Join(", ", h.DomainNames)}  (:{h.ForwardPort}, {(h.Online ? "online" : "offline")})"));

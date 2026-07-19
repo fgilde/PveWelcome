@@ -63,13 +63,58 @@
             <div><span class="label">Node</span><span class="val">@guest.Node</span></div>
             <div><span class="label">Typ</span><span class="val">@guest.Type (@guest.Kind)</span></div>
             <div><span class="label">IP</span><span class="val">@(guest.Ip ?? "–")</span></div>
-            <div><span class="label">CPU</span><span class="val">@Format.Pct(guest.CpuFraction)</span></div>
-            <div><span class="label">RAM</span><span class="val">@Format.Bytes(guest.MemUsed) / @Format.Bytes(guest.MemMax)</span></div>
+            <div><span class="label">CPU</span><span class="val">@Format.Pct(guest.CpuFraction)</span><Sparkline Values="CpuHist" /></div>
+            <div><span class="label">RAM</span><span class="val">@Format.Bytes(guest.MemUsed) / @Format.Bytes(guest.MemMax)</span><Sparkline Values="MemHist" Color="#38bdf8" /></div>
             <div><span class="label">Disk</span><span class="val">@Format.Bytes(guest.DiskUsed) / @Format.Bytes(guest.DiskMax)</span></div>
             <div><span class="label">Uptime</span><span class="val">@Format.Uptime(guest.Uptime)</span></div>
             <div><span class="label">Bedient</span><span class="val">@served.Count Domain(s)</span></div>
             <div><span class="label">Backup</span><span class="val">@BackupText()</span></div>
         </section>
+
+        var gtasks = Data.Tasks.Where(t => t.VmId == guest.VmId).Take(6).ToList();
+        @if (gtasks.Count > 0)
+        {
+            <h2>Aktivität</h2>
+            <div class="tasks">
+                @foreach (var t in gtasks)
+                {
+                    <div class="task @(t.IsRunning ? "run" : t.Ok ? "ok" : "err")">
+                        <span class="tstate">@(t.IsRunning ? "läuft…" : t.Ok ? "✓" : "✗")</span>
+                        <span class="tt">@t.Type</span>
+                        <span class="ts muted">@t.Start.LocalDateTime.ToString("dd.MM HH:mm")</span>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="res-head">
+            <h2>Snapshots</h2>
+            <button class="btn sm" disabled="@busy" @onclick="CreateSnap">＋ Snapshot</button>
+        </div>
+        @if (snapMsg is not null)
+        {
+            <p class="muted">@snapMsg</p>
+        }
+        @if (snaps.Count == 0)
+        {
+            <p class="muted">Keine Snapshots.</p>
+        }
+        else
+        {
+            <div class="snap-list">
+                @foreach (var s in snaps)
+                {
+                    <div class="snap-row">
+                        <span class="snap-name">@s.Name</span>
+                        <span class="muted">@(s.Time?.LocalDateTime.ToString("dd.MM HH:mm") ?? "")@(string.IsNullOrEmpty(s.Description) ? "" : " · " + s.Description)</span>
+                        <span class="snap-btns">
+                            <button class="btn xs" disabled="@busy" @onclick="() => Rollback(s)">Rollback</button>
+                            <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteSnap(s)">Löschen</button>
+                        </span>
+                    </div>
+                }
+            </div>
+        }
 
         <h2>Links</h2>
         <div class="links-list">
@@ -105,6 +150,12 @@
     private PveGuest? guest;
     private bool busy;
     private string? bkpMsg;
+    private string? snapMsg;
+    private IReadOnlyList<RrdPoint> rrd = [];
+    private List<Snapshot> snaps = [];
+
+    private IReadOnlyList<double> CpuHist => rrd.Select(p => p.Cpu).ToList();
+    private IReadOnlyList<double> MemHist => rrd.Select(p => p.Mem).ToList();
 
     private async Task BackupNow()
     {
@@ -142,11 +193,54 @@
         Data.Changed += OnChanged;
         if (Data.LastUpdated == default) await Data.RefreshAsync();
         Resolve();
+        await LoadExtras();
     }
 
     protected override void OnParametersSet() => Resolve();
 
     private void Resolve() => guest = Data.Guests.FirstOrDefault(g => g.VmId == VmId);
+
+    /// Per-guest history + snapshots (fetched on demand, not cached for all guests).
+    private async Task LoadExtras()
+    {
+        if (guest is null) return;
+        rrd = await Pve.GetGuestRrdAsync(guest.Node, guest.Type, guest.VmId);
+        snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
+    }
+
+    private async Task CreateSnap()
+    {
+        if (guest is null) return;
+        var name = await JS.InvokeAsync<string>("prompt", "Snapshot-Name (Buchstabe zuerst, dann Buchstaben/Ziffern/_):", $"snap{DateTime.Now:MMddHHmm}");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        busy = true; StateHasChanged();
+        var err = await Pve.CreateSnapshotAsync(guest.Node, guest.Type, guest.VmId, name.Trim(), null);
+        snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
+        busy = false;
+        snapMsg = err is null ? $"Snapshot '{name}' erstellt." : $"Fehlgeschlagen: {err}";
+    }
+
+    private async Task Rollback(Snapshot s)
+    {
+        if (guest is null) return;
+        var warn = guest.IsRunning ? "\n\nGuest läuft — Rollback verwirft den aktuellen Zustand." : "";
+        if (!await JS.InvokeAsync<bool>("confirm", $"Auf Snapshot '{s.Name}' zurückrollen? Der aktuelle Zustand geht verloren.{warn}")) return;
+        busy = true; StateHasChanged();
+        var err = await Pve.RollbackSnapshotAsync(guest.Node, guest.Type, guest.VmId, s.Name);
+        busy = false;
+        snapMsg = err is null ? $"Rollback auf '{s.Name}' gestartet (im Task/Konsole beobachten)." : $"Rollback fehlgeschlagen: {err}";
+    }
+
+    private async Task DeleteSnap(Snapshot s)
+    {
+        if (guest is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Snapshot '{s.Name}' löschen?")) return;
+        busy = true; StateHasChanged();
+        var err = await Pve.DeleteSnapshotAsync(guest.Node, guest.Type, guest.VmId, s.Name);
+        snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
+        busy = false;
+        snapMsg = err is null ? $"Snapshot '{s.Name}' gelöscht." : $"Löschen fehlgeschlagen: {err}";
+    }
 
     private string BackupText()
     {

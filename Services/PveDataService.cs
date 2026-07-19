@@ -3,15 +3,21 @@ using PveWelcome.Models;
 namespace PveWelcome.Services;
 
 /// Caches PVE + NPM data and refreshes it in the background so pages render instantly.
-public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactory httpFactory, ILogger<PveDataService> log) : IHostedService, IDisposable
+public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactory httpFactory, NotificationService notifier, ILogger<PveDataService> log) : IHostedService, IDisposable
 {
     private Timer? _timer;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private HashSet<string> _lastAlerts = [];
+    private bool _alertsSeeded;
 
     public NodeStatus? Health { get; private set; }
     public IReadOnlyList<PveGuest> Guests { get; private set; } = [];
     public IReadOnlyList<StorageInfo> Storages { get; private set; } = [];
     public IReadOnlyList<string> BackupStorages { get; private set; } = [];
+    public IReadOnlyList<double> NodeCpuHist { get; private set; } = [];
+    public IReadOnlyList<double> NodeMemHist { get; private set; } = [];
+    public IReadOnlyList<PveTask> Tasks { get; private set; } = [];
+    public int UpdatesAvailable { get; private set; }
     public string? Node { get; private set; }
     public IReadOnlyList<NpmHost> Hosts { get; private set; } = [];
     public IReadOnlyDictionary<int, BackupInfo> Backups { get; private set; } = new Dictionary<int, BackupInfo>();
@@ -52,11 +58,17 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
                     foreach (var (vmid, info) in await pve.GetBackupsAsync(nodes[0], s.Name))
                         if (!merged.TryGetValue(vmid, out var cur) || info.Time > cur.Time) merged[vmid] = info;
                 Backups = merged;
+                var rrd = await pve.GetNodeRrdAsync(nodes[0]);
+                NodeCpuHist = rrd.Select(p => p.Cpu).ToList();
+                NodeMemHist = rrd.Select(p => p.Mem).ToList();
+                Tasks = await pve.GetTasksAsync(nodes[0]);
+                UpdatesAvailable = await pve.GetUpdatesAsync(nodes[0]);
             }
             Guests = await pve.GetGuestsAsync();
             Hosts = await npm.GetHostsAsync();
             DomainUp = await CheckDomainsAsync(Hosts);
             LastUpdated = DateTime.Now;
+            await NotifyNewAlertsAsync();
         }
         catch (Exception ex) { log.LogWarning(ex, "data refresh"); }
         finally
@@ -72,6 +84,38 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
         g.Ip is null ? [] : Hosts.Where(h => h.ForwardHost == g.Ip).ToList();
 
     public BackupInfo? BackupFor(int vmid) => Backups.TryGetValue(vmid, out var b) ? b : null;
+
+    /// Current alert lines (shared by the dashboard banner and the notifier).
+    public IReadOnlyList<string> Alerts
+    {
+        get
+        {
+            var list = new List<string>();
+            foreach (var s in Storages.Where(s => s.Fraction > 0.90))
+                list.Add($"Storage '{s.Name}' ist zu {s.Fraction * 100:0} % voll");
+            foreach (var g in Guests.Where(g => !g.IsRunning))
+                list.Add($"{g.Kind} {g.Name} (#{g.VmId}) ist gestoppt");
+            var noBackup = Guests.Count(g => BackupFor(g.VmId) is null);
+            if (Backups.Count > 0 && noBackup > 0)
+                list.Add($"{noBackup} Guest(s) ohne Backup");
+            if (UpdatesAvailable > 0)
+                list.Add($"{UpdatesAvailable} Paket-Update(s) am Node verfügbar");
+            return list;
+        }
+    }
+
+    /// Push only alerts that are new since the last refresh (no re-spam every 20 s). First run only seeds.
+    private async Task NotifyNewAlertsAsync()
+    {
+        var current = Alerts.ToHashSet();
+        if (_alertsSeeded)
+        {
+            var fresh = current.Where(a => !_lastAlerts.Contains(a)).ToList();
+            if (fresh.Count > 0) await notifier.NotifyAsync(fresh);
+        }
+        _lastAlerts = current;
+        _alertsSeeded = true;
+    }
 
     /// The storage a manual backup writes to (configured, else first backup-capable storage).
     public string? BackupTarget

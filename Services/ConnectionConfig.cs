@@ -23,9 +23,10 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
             "\"PveBaseUrl\" TEXT NOT NULL, \"PveApiToken\" TEXT NOT NULL, " +
             "\"NpmBaseUrl\" TEXT NOT NULL, \"NpmUser\" TEXT NOT NULL, \"NpmPassword\" TEXT NOT NULL, " +
             "\"BackupStorage\" TEXT NOT NULL DEFAULT '');");
-        // add column for DBs created before BackupStorage existed
-        try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Connections\" ADD COLUMN \"BackupStorage\" TEXT NOT NULL DEFAULT '';"); }
-        catch { /* column already exists */ }
+        // add columns for DBs created before these existed (ignore "already exists")
+        foreach (var col in new[] { "BackupStorage", "NotifyWebhook", "TelegramToken", "TelegramChatId" })
+            try { await db.Database.ExecuteSqlRawAsync($"ALTER TABLE \"Connections\" ADD COLUMN \"{col}\" TEXT NOT NULL DEFAULT '';"); }
+            catch { /* column already exists */ }
 
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is null)
@@ -57,6 +58,9 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
             row.NpmUser = edited.NpmUser.Trim();
             row.NpmPassword = edited.NpmPassword;
             row.BackupStorage = edited.BackupStorage.Trim();
+            row.NotifyWebhook = edited.NotifyWebhook.Trim();
+            row.TelegramToken = edited.TelegramToken.Trim();
+            row.TelegramChatId = edited.TelegramChatId.Trim();
             if (isNew) db.Connections.Add(row);
             await db.SaveChangesAsync();
             _current = row;

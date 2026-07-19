@@ -30,7 +30,11 @@
                     }
                 </select>
             </label>
+            <label>Alert-Webhook (optional)<input @bind="conn.NotifyWebhook" placeholder="https://... (POST {&quot;text&quot;:...})" /></label>
+            <label>Telegram Bot-Token (optional)<input type="password" @bind="conn.TelegramToken" placeholder="123456:ABC..." /></label>
+            <label>Telegram Chat-ID (optional)<input @bind="conn.TelegramChatId" placeholder="z.B. 12345678" /></label>
         </div>
+        <p class="muted" style="margin:.25rem 0 0">Bei neuen Alerts (Pool voll, Guest down, Backup fehlt, Updates) wird — falls gesetzt — an Webhook und/oder Telegram gepusht.</p>
         <button class="btn sm go" @onclick="SaveConn">Speichern &amp; neu laden</button>
         @if (connMsg is not null)
         {
@@ -84,7 +88,8 @@
         {
             Id = c.Id, PveBaseUrl = c.PveBaseUrl, PveApiToken = c.PveApiToken,
             NpmBaseUrl = c.NpmBaseUrl, NpmUser = c.NpmUser, NpmPassword = c.NpmPassword,
-            BackupStorage = c.BackupStorage
+            BackupStorage = c.BackupStorage,
+            NotifyWebhook = c.NotifyWebhook, TelegramToken = c.TelegramToken, TelegramChatId = c.TelegramChatId
         };
     }
 

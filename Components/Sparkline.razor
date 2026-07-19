@@ -1,0 +1,21 @@
+@if (Values is { Count: > 1 })
+{
+    <svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" width="90" height="22" role="img" aria-label="Verlauf">
+        <polyline points="@Points" fill="none" stroke="@Color" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+    </svg>
+}
+
+@code {
+    /// history values normalized 0..1, oldest first
+    [Parameter] public IReadOnlyList<double>? Values { get; set; }
+    [Parameter] public string Color { get; set; } = "var(--accent, #8b5cf6)";
+
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    private string Points => string.Join(" ", Values!.Select((v, i) =>
+    {
+        var x = i * 100.0 / (Values!.Count - 1);
+        var y = 24 - Math.Clamp(v, 0, 1) * 24;
+        return $"{x.ToString("0.#", Inv)},{y.ToString("0.#", Inv)}";
+    }));
+}

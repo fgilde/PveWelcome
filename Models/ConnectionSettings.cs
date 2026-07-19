@@ -12,4 +12,9 @@ public class ConnectionSettings
     public string NpmPassword { get; set; } = "";
     /// Default PVE storage that "Backup now" writes to.
     public string BackupStorage { get; set; } = "";
+    /// Optional generic webhook URL that alerts get POSTed to as {"text": "..."}.
+    public string NotifyWebhook { get; set; } = "";
+    /// Optional Telegram bot token + chat id for alert push.
+    public string TelegramToken { get; set; } = "";
+    public string TelegramChatId { get; set; } = "";
 }

@@ -217,3 +217,20 @@ a { color: inherit; text-decoration: none; }
 .npm-form .row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
 .npm-form label.cb { flex-direction: row; align-items: center; gap: .4rem; }
 .npm-form input[type=number] { width: 100px; }
+
+/* --- sparklines, activity feed, snapshots --- */
+.spark { display:block; margin-top:.35rem; opacity:.85; overflow:visible; }
+.tasks { display:flex; flex-direction:column; gap:.25rem; margin-bottom:1rem; }
+.task { display:grid; grid-template-columns:2.2rem 1fr auto; align-items:center; gap:.6rem;
+  padding:.4rem .7rem; border-radius:8px; background:var(--card,#1a1a24); border-left:3px solid #555; font-size:.9rem; }
+.task.run { border-left-color:#eab308; }
+.task.ok  { border-left-color:#22c55e; }
+.task.err { border-left-color:#ef4444; }
+.task .tstate { font-weight:600; }
+.task.run .tstate { color:#eab308; }
+.task.err .tstate { color:#ef4444; }
+.snap-list { display:flex; flex-direction:column; gap:.3rem; }
+.snap-row { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:.7rem;
+  padding:.4rem .7rem; border-radius:8px; background:var(--card,#1a1a24); }
+.snap-name { font-weight:600; }
+.snap-btns { display:flex; gap:.4rem; }

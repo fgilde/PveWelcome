@@ -106,6 +106,97 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
         return map;
     }
 
+    /// CPU/RAM history (last hour, normalized 0..1) from PVE's own rrd store — nothing stored by us.
+    private async Task<List<RrdPoint>> RrdAsync(string path, string memUsedKey, string memTotalKey)
+    {
+        try
+        {
+            var data = await GetDataAsync($"{path}?timeframe=hour&cf=AVERAGE");
+            var pts = new List<RrdPoint>();
+            foreach (var e in data.EnumerateArray())
+            {
+                double D(string k) => e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : 0;
+                var mt = D(memTotalKey);
+                pts.Add(new RrdPoint(D("cpu"), mt > 0 ? D(memUsedKey) / mt : 0));
+            }
+            return pts;
+        }
+        catch (Exception ex) { log.LogWarning(ex, "rrd {Path}", path); return []; }
+    }
+
+    public Task<List<RrdPoint>> GetNodeRrdAsync(string node) => RrdAsync($"/nodes/{node}/rrddata", "memused", "memtotal");
+    public Task<List<RrdPoint>> GetGuestRrdAsync(string node, string type, int vmid) => RrdAsync($"/nodes/{node}/{type}/{vmid}/rrddata", "mem", "maxmem");
+
+    /// Recent node tasks (backups, restores, start/stop, ...), newest first.
+    public async Task<List<PveTask>> GetTasksAsync(string node, int limit = 20)
+    {
+        try
+        {
+            var data = await GetDataAsync($"/nodes/{node}/tasks?limit={limit}&source=all");
+            return data.EnumerateArray().Select(t =>
+            {
+                string S(string k) => t.TryGetProperty(k, out var v) ? v.GetString() ?? "" : "";
+                var idStr = S("id");
+                int? vmid = int.TryParse(idStr, out var vi) ? vi : null;
+                var start = t.TryGetProperty("starttime", out var s) ? DateTimeOffset.FromUnixTimeSeconds(s.GetInt64()) : default;
+                DateTimeOffset? end = t.TryGetProperty("endtime", out var e) && e.ValueKind == JsonValueKind.Number
+                    ? DateTimeOffset.FromUnixTimeSeconds(e.GetInt64()) : null;
+                return new PveTask(S("type"), S("status"), vmid, start, end, S("upid"));
+            }).ToList();
+        }
+        catch (Exception ex) { log.LogWarning(ex, "tasks {Node}", node); return []; }
+    }
+
+    /// Number of pending apt updates on the node (from the cached list; 0 on error).
+    public async Task<int> GetUpdatesAsync(string node)
+    {
+        try { return (await GetDataAsync($"/nodes/{node}/apt/update")).GetArrayLength(); }
+        catch (Exception ex) { log.LogWarning(ex, "updates {Node}", node); return 0; }
+    }
+
+    public async Task<List<Snapshot>> GetSnapshotsAsync(string node, string type, int vmid)
+    {
+        try
+        {
+            var data = await GetDataAsync($"/nodes/{node}/{type}/{vmid}/snapshot");
+            return data.EnumerateArray().Select(s => new Snapshot(
+                    s.GetProperty("name").GetString() ?? "",
+                    s.TryGetProperty("description", out var d) ? d.GetString() : null,
+                    s.TryGetProperty("snaptime", out var t) && t.ValueKind == JsonValueKind.Number
+                        ? DateTimeOffset.FromUnixTimeSeconds(t.GetInt64()) : null))
+                .Where(s => s.Name != "current")
+                .OrderByDescending(s => s.Time)
+                .ToList();
+        }
+        catch (Exception ex) { log.LogWarning(ex, "snapshots {Vmid}", vmid); return []; }
+    }
+
+    public Task<string?> CreateSnapshotAsync(string node, string type, int vmid, string name, string? desc)
+    {
+        var req = Req(HttpMethod.Post, $"/nodes/{node}/{type}/{vmid}/snapshot");
+        req.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["snapname"] = name, ["description"] = desc ?? "" });
+        return SendErr(req);
+    }
+
+    public Task<string?> RollbackSnapshotAsync(string node, string type, int vmid, string name) =>
+        SendErr(Req(HttpMethod.Post, $"/nodes/{node}/{type}/{vmid}/snapshot/{name}/rollback"));
+
+    public Task<string?> DeleteSnapshotAsync(string node, string type, int vmid, string name) =>
+        SendErr(Req(HttpMethod.Delete, $"/nodes/{node}/{type}/{vmid}/snapshot/{name}"));
+
+    /// Send a request, return null on success else "code: body".
+    private async Task<string?> SendErr(HttpRequestMessage req)
+    {
+        try
+        {
+            using var res = await http.SendAsync(req);
+            if (res.IsSuccessStatusCode) return null;
+            var body = await res.Content.ReadAsStringAsync();
+            return $"{(int)res.StatusCode}: {body[..Math.Min(200, body.Length)]}";
+        }
+        catch (Exception ex) { return ex.Message; }
+    }
+
     public async Task<List<PveGuest>> GetGuestsAsync(bool withIp = true)
     {
         var guests = new List<PveGuest>();

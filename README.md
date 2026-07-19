@@ -1,53 +1,58 @@
 # PveWelcome
 
-Eine kleine, gebrandete Landing-Page **und** ein internes Dashboard für deinen Proxmox-Node —
-in einer App. Öffentlich zeigt sie deine Marke; eingeloggt siehst du Node-Health, alle
-VMs/Container mit Start/Stop/Restart, Storage, Backups (inkl. Backup **und** Restore auf Knopfdruck)
-und deine Nginx-Proxy-Manager-Domains mit echtem Extern-Status.
+*🇩🇪 Deutsch: [README_de.md](README_de.md)*
 
-Läuft als ein einzelner .NET-Blazor-Server-Prozess. Der Server hält die Secrets und ruft die
-Proxmox-/NPM-APIs serverseitig — der Browser sieht keine Tokens.
+A small, branded landing page **and** an internal dashboard for your Proxmox node — in one app.
+Publicly it shows your brand; once logged in you get node health, every VM/container with
+start/stop/restart, storage, backups (backup **and** restore at the click of a button), and your
+Nginx Proxy Manager domains with a real external-reachability check.
+
+Runs as a single .NET Blazor Server process. The server keeps the secrets and calls the
+Proxmox/NPM APIs server-side — the browser never sees a token.
 
 <img width="1530" height="1028" alt="PveWelcome Dashboard" src="https://github.com/user-attachments/assets/8c2c51ff-e791-4d74-b568-f770ad8fe341" />
 
 ## Features
 
-- **Node-Health** — CPU, RAM, Load, Uptime, Storage-Pools (used/total).
-- **Guests als Kacheln** — Live-Status, Start/Stop/Restart (harte Sicherheitsabfrage), CPU/RAM/Disk.
-- **Backups** — letztes Backup je Guest, **Backup jetzt** und **Restore** (destruktiv, mit Namens-Bestätigung).
-- **NPM-Domains** — welche Domain welche Ressource bedient, plus echter externer Erreichbarkeits-Check.
-- **Alerts** — Pool >90 %, gestoppte Guests, Guests ohne Backup.
-- **Branding** — pro Domain eigene Landing-Page (Name, Tagline, Akzentfarbe, Link) aus der DB.
-- **Alles konfigurierbar in der UI** — PVE-/NPM-Zugang, Backup-Ziel, User, Branding unter `/admin`.
+- **Node health** — CPU, RAM, load, uptime, storage pools (used/total), history sparklines.
+- **Guests as tiles** — live status, start/stop/restart (hard confirmation), CPU/RAM/disk.
+- **Backups** — latest backup per guest, **Backup now** and **Restore** (destructive, name confirmation).
+- **Snapshots** — create / roll back / delete per guest.
+- **Activity feed** — recent PVE tasks (backup/restore/start/stop) with live status.
+- **Domains** — which domain serves which resource, plus a real external reachability check.
+- **Alerts + notifications** — pool >90 %, stopped guests, guests without a backup, pending updates;
+  optionally pushed via webhook/Telegram.
+- **Branding** — a per-domain landing page (name, tagline, accent color, link) from the DB.
+- **Everything configurable in the UI** — PVE/NPM access, backup target, notifications, users, branding under `/admin`.
 
-## Voraussetzungen
+## Requirements
 
-- Ein Proxmox VE (8.x) mit einem **API-Token** (`Datacenter → Permissions → API Tokens`):
-  `pveum user token add root@pam pvewelcome --privsep 0` (Restore/Backup brauchen Schreibrechte).
-- Optional: ein Nginx Proxy Manager (für die Domain-Übersicht).
-- Netzwerkzugang von dort, wo PveWelcome läuft, zu Proxmox (`:8006`) und ggf. NPM.
+- A Proxmox VE (8.x) with an **API token** (`Datacenter → Permissions → API Tokens`):
+  `pveum user token add root@pam pvewelcome --privsep 0` (restore/backup need write access).
+- Optional: an Nginx Proxy Manager (for the domain overview).
+- Network access from wherever PveWelcome runs to Proxmox (`:8006`) and, if used, NPM.
 
-## Installieren
+## Install
 
-### A) Proxmox-Helper (empfohlen — „einfach ballern")
+### A) Proxmox helper (recommended — one-shot)
 
-Auf dem **Proxmox-Host** ausführen. Legt einen kleinen Debian-LXC an und startet PveWelcome
-nativ als systemd-Service (kein Docker nötig):
+Run on the **Proxmox host**. Creates a small Debian LXC and runs PveWelcome natively as a
+systemd service (no Docker needed):
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/fgilde/PveWelcome/master/scripts/pve-install.sh)"
 ```
 
-Fragt PVE-URL, Token und Admin-Login ab, danach läuft es auf `http://<ct-ip>:8080`.
-Ressourcen/Storage/TZ via Env-Overrides steuerbar, z. B. `RAM=768 STORAGE=local-lvm bash pve-install.sh`.
+Prompts for the PVE URL, token and admin login, then serves on `http://<ct-ip>:8080`.
+Resources/storage/TZ are overridable via env, e.g. `RAM=768 STORAGE=local-lvm bash pve-install.sh`.
 
-### B) Docker (jeder Docker-Host: VM, NAS, VPS)
+### B) Docker (any Docker host: VM, NAS, VPS)
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/fgilde/PveWelcome/master/install.sh)"
 ```
 
-Oder direkt:
+Or directly:
 
 ```bash
 docker run -d --name pvewelcome --restart unless-stopped \
@@ -59,49 +64,49 @@ docker run -d --name pvewelcome --restart unless-stopped \
   ghcr.io/fgilde/pvewelcome:latest
 ```
 
-Das `/data`-Volume hält DB **und** Data-Protection-Keys — nicht wegwerfen, sonst
-Login-500 nach jedem Neustart. `--user 0:0`, damit der Container ins Volume schreiben darf.
+The `/data` volume holds the DB **and** the data-protection keys — don't throw it away, or you'll
+get a login 500 after every restart. `--user 0:0` so the container can write to the volume.
 
-### C) Aus dem Quellcode
+### C) From source
 
 ```bash
-dotnet run                # lokal, seedet admin/admin
-# oder ein eigenes Image bauen:
+dotnet run                # local, seeds admin/admin
+# or build your own image:
 dotnet publish -c Release --os linux --arch x64 -t:PublishContainer -p:ContainerImageTag=dev
 ```
 
-## Konfiguration
+## Configuration
 
-Alles per Env (oder `appsettings.json`); Doppel-`__` = verschachtelte Section. Nach dem ersten
-Start ist das meiste auch in der UI unter **`/admin/settings → Verbindungen`** editierbar
-(DB-gestützt) — praktisch, wenn andere die App auf ihre eigene Proxmox/NPM zeigen wollen.
+Everything via env (or `appsettings.json`); double `__` = nested section. After the first start
+most of it is also editable in the UI under **`/admin/settings → Connections`** (DB-backed) —
+handy when others point the app at their own Proxmox/NPM.
 
-| Env | Zweck |
-|-----|-------|
-| `Pve__BaseUrl` | z. B. `https://IP:8006/api2/json` |
-| `Pve__ApiToken` | voller Token `USER@REALM!TOKENID=SECRET` |
+| Env | Purpose |
+|-----|---------|
+| `Pve__BaseUrl` | e.g. `https://IP:8006/api2/json` |
+| `Pve__ApiToken` | full token `USER@REALM!TOKENID=SECRET` |
 | `Npm__BaseUrl` / `Npm__User` / `Npm__Password` | Nginx Proxy Manager (optional) |
-| `Admin__User` / `Admin__Password` | erster Login (danach in `/admin/users` änderbar) |
-| `Db__Path` | SQLite-Pfad, z. B. `/data/pvewelcome.db` |
-| `Brands__<host>__Name` etc. | Branding pro Domain (siehe `appsettings.json`) |
+| `Admin__User` / `Admin__Password` | first login (change later in `/admin/users`) |
+| `Db__Path` | SQLite path, e.g. `/data/pvewelcome.db` |
+| `Brands__<host>__Name` etc. | per-domain branding (see `appsettings.json`) |
 
-Passwörter mit `$` in einer Compose-Datei als `$$` schreiben (Compose-Interpolation).
+Escape a `$` in passwords as `$$` in a Compose file (Compose interpolation).
 
-## Wo läuft das sinnvoll?
+## Where does this make sense?
 
-- **Auf Proxmox selbst** (Weg A) — die naheliegende Homelab-Variante, ein CT, fertig.
-- **Auf einem separaten Docker-Host / NAS / VPS** — wenn du den Node nicht belasten willst;
-  braucht nur Netzwerk-/VPN-Sicht auf die Proxmox-API.
-- **Als öffentliche Landing** hinter Cloudflare-Tunnel + Reverse Proxy — außen die Marke,
-  der Login-Bereich bleibt intern.
+- **On Proxmox itself** (option A) — the obvious homelab variant: one CT, done.
+- **On a separate Docker host / NAS / VPS** — if you don't want to load the node; only needs
+  network/VPN visibility to the Proxmox API.
+- **As a public landing page** behind a Cloudflare Tunnel + reverse proxy — the brand on the
+  outside, the login area stays internal.
 
-## Technik
+## How it works
 
-.NET 10 Blazor Server · EF Core SQLite · Cookie-Auth · ein Hintergrund-Dienst cached PVE+NPM-Daten
-alle 20 s (Navigation ohne Warten). `PveClient` (Proxmox REST) + `NpmClient` (NPM-API).
-Proxmox nutzt intern ein self-signed Cert — der PVE-HTTP-Client überspringt die Cert-Prüfung nur dafür.
-TLS terminiert am Reverse Proxy/Tunnel; die App erzwingt selbst kein HTTPS.
+.NET 10 Blazor Server · EF Core SQLite · cookie auth · a background service caches PVE+NPM data
+every 20 s (navigation without waiting). `PveClient` (Proxmox REST) + `NpmClient` (NPM API).
+Proxmox uses a self-signed cert internally — the PVE HTTP client skips cert validation only for that.
+TLS terminates at the reverse proxy/tunnel; the app doesn't force HTTPS itself.
 
-## Lizenz
+## License
 
 MIT.
