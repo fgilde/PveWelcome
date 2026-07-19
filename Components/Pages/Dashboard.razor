@@ -68,7 +68,13 @@
         </section>
     }
 
-    <h2>Ressourcen</h2>
+    <div class="res-head">
+        <h2>Ressourcen</h2>
+        @if (bkpMsg is not null)
+        {
+            <span class="muted bkp-msg">@bkpMsg</span>
+        }
+    </div>
     @if (Data.Guests.Count == 0)
     {
         <p class="muted">@(Data.LastUpdated == default ? "Lade…" : "Keine Ressourcen.")</p>
@@ -118,6 +124,7 @@
                         {
                             <button class="btn xs go" disabled="@IsBusy(g)" @onclick='() => Act(g, "start")'>Start</button>
                         }
+                        <button class="btn xs" disabled="@IsBusy(g)" @onclick="() => BackupNow(g)">Backup</button>
                         <a class="btn xs ghost" href="/resource/@g.VmId">Details →</a>
                     </div>
                 </div>
@@ -155,6 +162,18 @@
 
 @code {
     private string? busyKey;
+    private string? bkpMsg;
+
+    private async Task BackupNow(PveGuest g)
+    {
+        var target = Data.BackupTarget;
+        if (string.IsNullOrEmpty(target)) { bkpMsg = "Kein Backup-Ziel konfiguriert — in Settings wählen."; return; }
+        if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {g.Name} auf '{target}' starten?")) return;
+        var ok = await Data.TriggerBackupAsync(g);
+        bkpMsg = ok
+            ? $"Backup von {g.Name} → '{target}' gestartet (erscheint in ein paar Minuten)."
+            : $"Backup-Start für {g.Name} fehlgeschlagen.";
+    }
 
     private System.Threading.Timer? _ticker;
 

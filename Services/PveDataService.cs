@@ -11,6 +11,8 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
     public NodeStatus? Health { get; private set; }
     public IReadOnlyList<PveGuest> Guests { get; private set; } = [];
     public IReadOnlyList<StorageInfo> Storages { get; private set; } = [];
+    public IReadOnlyList<string> BackupStorages { get; private set; } = [];
+    public string? Node { get; private set; }
     public IReadOnlyList<NpmHost> Hosts { get; private set; } = [];
     public IReadOnlyDictionary<int, BackupInfo> Backups { get; private set; } = new Dictionary<int, BackupInfo>();
     /// domain -> reachable from outside (real end-to-end check via Cloudflare)
@@ -41,9 +43,15 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
             var nodes = await pve.GetNodesAsync();
             if (nodes.Count > 0)
             {
+                Node = nodes[0];
                 Health = await pve.GetNodeStatusAsync(nodes[0]);
                 Storages = await pve.GetStoragesAsync(nodes[0]);
-                Backups = await pve.GetBackupsAsync(nodes[0]);
+                BackupStorages = Storages.Where(s => s.TakesBackups).Select(s => s.Name).ToList();
+                var merged = new Dictionary<int, BackupInfo>();
+                foreach (var s in Storages.Where(s => s.TakesBackups))
+                    foreach (var (vmid, info) in await pve.GetBackupsAsync(nodes[0], s.Name))
+                        if (!merged.TryGetValue(vmid, out var cur) || info.Time > cur.Time) merged[vmid] = info;
+                Backups = merged;
             }
             Guests = await pve.GetGuestsAsync();
             Hosts = await npm.GetHostsAsync();
@@ -64,6 +72,27 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
         g.Ip is null ? [] : Hosts.Where(h => h.ForwardHost == g.Ip).ToList();
 
     public BackupInfo? BackupFor(int vmid) => Backups.TryGetValue(vmid, out var b) ? b : null;
+
+    /// The storage a manual backup writes to (configured, else first backup-capable storage).
+    public string? BackupTarget
+    {
+        get
+        {
+            using var scope = scopeFactory.CreateScope();
+            var cfg = scope.ServiceProvider.GetRequiredService<ConnectionConfig>().Current.BackupStorage;
+            return !string.IsNullOrWhiteSpace(cfg) ? cfg : BackupStorages.FirstOrDefault();
+        }
+    }
+
+    /// Start a manual backup of one guest to the configured target storage.
+    public async Task<bool> TriggerBackupAsync(PveGuest g)
+    {
+        var storage = BackupTarget;
+        if (string.IsNullOrWhiteSpace(storage)) return false;
+        using var scope = scopeFactory.CreateScope();
+        var pve = scope.ServiceProvider.GetRequiredService<PveClient>();
+        return await pve.TriggerBackupAsync(g.Node, g.VmId, storage);
+    }
 
     /// Real external reachability of each served domain (GET https://domain via Cloudflare).
     private async Task<Dictionary<string, bool>> CheckDomainsAsync(IReadOnlyList<NpmHost> hosts)

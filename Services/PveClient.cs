@@ -76,7 +76,8 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
                     s.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "",
                     s.TryGetProperty("total", out var tot) ? tot.GetInt64() : 0,
                     s.TryGetProperty("used", out var u) ? u.GetInt64() : 0,
-                    s.TryGetProperty("avail", out var av) ? av.GetInt64() : 0))
+                    s.TryGetProperty("avail", out var av) ? av.GetInt64() : 0,
+                    s.TryGetProperty("content", out var ct) ? ct.GetString() ?? "" : ""))
                 .OrderByDescending(s => s.Total)
                 .ToList();
         }
@@ -203,5 +204,26 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
             return res.IsSuccessStatusCode;
         }
         catch (Exception ex) { log.LogWarning(ex, "action {Action} {Vmid}", action, vmid); return false; }
+    }
+
+    /// Start a vzdump backup of one guest to the given storage. Returns true if the task started.
+    public async Task<bool> TriggerBackupAsync(string node, int vmid, string storage)
+    {
+        if (string.IsNullOrWhiteSpace(storage)) return false;
+        try
+        {
+            var req = Req(HttpMethod.Post, $"/nodes/{node}/vzdump");
+            req.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["vmid"] = vmid.ToString(),
+                ["storage"] = storage,
+                ["mode"] = "snapshot",
+                ["compress"] = "zstd",
+                ["remove"] = "0",
+            });
+            using var res = await http.SendAsync(req);
+            return res.IsSuccessStatusCode;
+        }
+        catch (Exception ex) { log.LogWarning(ex, "backup {Vmid} -> {Storage}", vmid, storage); return false; }
     }
 }

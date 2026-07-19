@@ -45,8 +45,13 @@
                 {
                     <button class="btn sm go" disabled="@busy" @onclick='() => Act("start")'>Start</button>
                 }
+                <button class="btn sm" disabled="@busy" @onclick="BackupNow">Backup jetzt</button>
             </div>
         </div>
+        @if (bkpMsg is not null)
+        {
+            <p class="muted">@bkpMsg</p>
+        }
 
         <section class="info-grid">
             <div><span class="label">Node</span><span class="val">@guest.Node</span></div>
@@ -93,6 +98,17 @@
 
     private PveGuest? guest;
     private bool busy;
+    private string? bkpMsg;
+
+    private async Task BackupNow()
+    {
+        if (guest is null) return;
+        var target = Data.BackupTarget;
+        if (string.IsNullOrEmpty(target)) { bkpMsg = "Kein Backup-Ziel konfiguriert — in Settings wählen."; return; }
+        if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {guest.Name} auf '{target}' starten?")) return;
+        var ok = await Data.TriggerBackupAsync(guest);
+        bkpMsg = ok ? $"Backup → '{target}' gestartet (erscheint in ein paar Minuten)." : "Backup-Start fehlgeschlagen.";
+    }
 
     private string PveUiUrl => Conn.Current.PveBaseUrl.Replace("/api2/json", "");
 

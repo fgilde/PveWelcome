@@ -21,6 +21,15 @@
             <label>NPM URL<input @bind="conn.NpmBaseUrl" placeholder="http://host:81" /></label>
             <label>NPM Benutzer<input @bind="conn.NpmUser" /></label>
             <label>NPM Passwort<input type="password" @bind="conn.NpmPassword" /></label>
+            <label>Backup-Ziel (Storage)
+                <select @bind="conn.BackupStorage">
+                    <option value="">(erstes verfügbares)</option>
+                    @foreach (var s in Data.BackupStorages)
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </select>
+            </label>
         </div>
         <button class="btn sm go" @onclick="SaveConn">Speichern &amp; neu laden</button>
         @if (connMsg is not null)
@@ -74,7 +83,8 @@
         conn = new ConnectionSettings
         {
             Id = c.Id, PveBaseUrl = c.PveBaseUrl, PveApiToken = c.PveApiToken,
-            NpmBaseUrl = c.NpmBaseUrl, NpmUser = c.NpmUser, NpmPassword = c.NpmPassword
+            NpmBaseUrl = c.NpmBaseUrl, NpmUser = c.NpmUser, NpmPassword = c.NpmPassword,
+            BackupStorage = c.BackupStorage
         };
     }
 

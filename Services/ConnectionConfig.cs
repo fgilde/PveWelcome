@@ -21,7 +21,11 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
             "CREATE TABLE IF NOT EXISTS \"Connections\" (" +
             "\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_Connections\" PRIMARY KEY AUTOINCREMENT, " +
             "\"PveBaseUrl\" TEXT NOT NULL, \"PveApiToken\" TEXT NOT NULL, " +
-            "\"NpmBaseUrl\" TEXT NOT NULL, \"NpmUser\" TEXT NOT NULL, \"NpmPassword\" TEXT NOT NULL);");
+            "\"NpmBaseUrl\" TEXT NOT NULL, \"NpmUser\" TEXT NOT NULL, \"NpmPassword\" TEXT NOT NULL, " +
+            "\"BackupStorage\" TEXT NOT NULL DEFAULT '');");
+        // add column for DBs created before BackupStorage existed
+        try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Connections\" ADD COLUMN \"BackupStorage\" TEXT NOT NULL DEFAULT '';"); }
+        catch { /* column already exists */ }
 
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is null)
@@ -52,6 +56,7 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
             row.NpmBaseUrl = edited.NpmBaseUrl.Trim();
             row.NpmUser = edited.NpmUser.Trim();
             row.NpmPassword = edited.NpmPassword;
+            row.BackupStorage = edited.BackupStorage.Trim();
             if (isNew) db.Connections.Add(row);
             await db.SaveChangesAsync();
             _current = row;

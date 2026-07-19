@@ -10,4 +10,6 @@ public class ConnectionSettings
     public string NpmBaseUrl { get; set; } = "";
     public string NpmUser { get; set; } = "";
     public string NpmPassword { get; set; } = "";
+    /// Default PVE storage that "Backup now" writes to.
+    public string BackupStorage { get; set; } = "";
 }

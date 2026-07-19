@@ -24,9 +24,10 @@ public record PveGuest(
 public record BackupInfo(int VmId, DateTimeOffset Time, long Size);
 
 /// A Proxmox storage pool on the node.
-public record StorageInfo(string Name, string Type, long Total, long Used, long Avail)
+public record StorageInfo(string Name, string Type, long Total, long Used, long Avail, string Content = "")
 {
     public double Fraction => Total > 0 ? (double)Used / Total : 0;
+    public bool TakesBackups => Content.Contains("backup");
 }
 
 /// Health of a Proxmox node.
