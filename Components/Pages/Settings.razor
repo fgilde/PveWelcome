@@ -4,6 +4,7 @@
 @inject BrandResolver Brands
 @inject ConnectionConfig Conn
 @inject PveDataService Data
+@inject MonitorService Monitors
 
 <PageTitle>Einstellungen</PageTitle>
 
@@ -40,6 +41,26 @@
         {
             <span class="muted" style="margin-left:1rem">@connMsg</span>
         }
+    </div>
+
+    <h2>Monitore (eigene HTTP-Checks)</h2>
+    <p class="muted">Beliebige URLs überwachen (nicht nur NPM-Domains). Down → Alert + Telegram/Webhook.</p>
+    <div class="settings-card">
+        @foreach (var m in monitors)
+        {
+            <div class="user-row">
+                <span class="uname">@m.Name</span>
+                <span class="muted" style="flex:1">@m.Url</span>
+                <span class="pill @(m.Enabled ? "on" : "off")">@(m.Enabled ? "aktiv" : "aus")</span>
+                <button class="btn xs" @onclick="() => ToggleMon(m.Id)">@(m.Enabled ? "aus" : "an")</button>
+                <button class="btn xs danger" @onclick="() => DeleteMon(m.Id)">Löschen</button>
+            </div>
+        }
+        <div class="add-user">
+            <input placeholder="Name" @bind="monName" />
+            <input placeholder="https://…" @bind="monUrl" />
+            <button class="btn sm go" @onclick="AddMon">Hinzufügen</button>
+        </div>
     </div>
 
     <h2>Welcome-Seiten</h2>
@@ -79,10 +100,18 @@
     private string? msg;
     private ConnectionSettings conn = new();
     private string? connMsg;
+    private List<UptimeMonitor> monitors = [];
+    private string monName = "";
+    private string monUrl = "";
+
+    private async Task AddMon() { await Monitors.AddAsync(monName, monUrl); monName = ""; monUrl = ""; monitors = await Monitors.ListAsync(); await Data.RefreshAsync(); }
+    private async Task ToggleMon(int id) { await Monitors.ToggleAsync(id); monitors = await Monitors.ListAsync(); await Data.RefreshAsync(); }
+    private async Task DeleteMon(int id) { await Monitors.DeleteAsync(id); monitors = await Monitors.ListAsync(); await Data.RefreshAsync(); }
 
     protected override async Task OnInitializedAsync()
     {
         brands = await Brands.GetAllAsync();
+        monitors = await Monitors.ListAsync();
         var c = Conn.Current;
         conn = new ConnectionSettings
         {

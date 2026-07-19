@@ -19,10 +19,32 @@
                 <span class="muted">seit @u.CreatedAt.ToString("yyyy-MM-dd")</span>
                 <input class="pw-inline" type="password" placeholder="neues Passwort" @bind="pwInputs[u.Id]" />
                 <button class="btn xs" @onclick="() => SetPw(u.Id)">Passwort setzen</button>
+                @if (string.IsNullOrEmpty(u.TotpSecret))
+                {
+                    <button class="btn xs" @onclick="() => StartEnroll(u.Id)">2FA einrichten</button>
+                }
+                else
+                {
+                    <span class="pill on">2FA aktiv</span>
+                    <button class="btn xs danger" @onclick="() => DisableTotp(u.Id)">2FA aus</button>
+                }
                 <button class="btn xs danger" disabled="@(users.Count <= 1)" @onclick="() => Delete(u.Id)">Löschen</button>
             </div>
         }
     </div>
+
+    @if (enrollId is not null)
+    {
+        <div class="settings-card">
+            <h3>2FA einrichten für @EnrollName</h3>
+            <p class="muted">Secret (oder die URI) in eine Authenticator-App eingeben, dann den aktuellen 6-stelligen Code zum Bestätigen.</p>
+            <p><strong>Secret:</strong> <code>@enrollSecret</code></p>
+            <p class="muted" style="word-break:break-all"><code>@Totp.OtpAuthUri(enrollSecret, EnrollName)</code></p>
+            <input placeholder="123456" inputmode="numeric" @bind="enrollCode" />
+            <button class="btn sm go" @onclick="ConfirmEnroll">Aktivieren</button>
+            <button class="btn sm" @onclick="CancelEnroll">Abbrechen</button>
+        </div>
+    }
 
     <h2>Neuen Benutzer anlegen</h2>
     <div class="add-user">
@@ -47,6 +69,30 @@
     private string newPass = "";
     private string newRole = "Admin";
     private string? msg;
+    private int? enrollId;
+    private string enrollSecret = "";
+    private string enrollCode = "";
+    private string EnrollName => users.FirstOrDefault(u => u.Id == enrollId)?.Username ?? "";
+
+    private void StartEnroll(int id) { enrollId = id; enrollSecret = Totp.GenerateSecret(); enrollCode = ""; msg = null; }
+    private void CancelEnroll() { enrollId = null; enrollSecret = ""; enrollCode = ""; }
+
+    private async Task ConfirmEnroll()
+    {
+        if (enrollId is null) return;
+        if (!Totp.Verify(enrollSecret, enrollCode)) { msg = "Code stimmt nicht — nochmal prüfen (Uhrzeit synchron?)."; return; }
+        await UserSvc.SetTotpAsync(enrollId.Value, enrollSecret);
+        msg = "2FA aktiviert.";
+        CancelEnroll();
+        await Reload();
+    }
+
+    private async Task DisableTotp(int id)
+    {
+        await UserSvc.SetTotpAsync(id, null);
+        msg = "2FA deaktiviert.";
+        await Reload();
+    }
 
     protected override async Task OnInitializedAsync() => await Reload();
 

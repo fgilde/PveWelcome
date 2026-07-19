@@ -147,6 +147,61 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
         catch (Exception ex) { log.LogWarning(ex, "tasks {Node}", node); return []; }
     }
 
+    /// Log lines of one task (for the activity-feed viewer).
+    public async Task<string> GetTaskLogAsync(string node, string upid, int limit = 400)
+    {
+        try
+        {
+            var data = await GetDataAsync($"/nodes/{node}/tasks/{Uri.EscapeDataString(upid)}/log?limit={limit}");
+            var lines = data.EnumerateArray()
+                .Select(e => e.TryGetProperty("t", out var t) ? t.GetString() ?? "" : "");
+            return string.Join("\n", lines);
+        }
+        catch (Exception ex) { log.LogWarning(ex, "task log {Upid}", upid); return "(Log nicht verfügbar)"; }
+    }
+
+    /// Physical disks with SMART health.
+    public async Task<List<DiskInfo>> GetDisksAsync(string node)
+    {
+        try
+        {
+            var data = await GetDataAsync($"/nodes/{node}/disks/list");
+            return data.EnumerateArray().Select(d => new DiskInfo(
+                d.TryGetProperty("devpath", out var p) ? p.GetString() ?? "" : "",
+                d.TryGetProperty("model", out var m) ? m.GetString() ?? "" : "",
+                d.TryGetProperty("health", out var h) ? h.GetString() ?? "" : "",
+                d.TryGetProperty("size", out var s) ? s.GetInt64() : 0,
+                d.TryGetProperty("type", out var t) ? t.GetString() ?? "" : ""))
+                .ToList();
+        }
+        catch (Exception ex) { log.LogWarning(ex, "disks {Node}", node); return []; }
+    }
+
+    /// Scheduled cluster backup jobs.
+    public async Task<List<BackupJob>> GetBackupJobsAsync()
+    {
+        try
+        {
+            var data = await GetDataAsync("/cluster/backup");
+            return data.EnumerateArray().Select(j => new BackupJob(
+                j.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "",
+                j.TryGetProperty("schedule", out var s) ? s.GetString() ?? "" : (j.TryGetProperty("starttime", out var st) ? st.GetString() ?? "" : ""),
+                j.TryGetProperty("storage", out var stg) ? stg.GetString() ?? "" : "",
+                !j.TryGetProperty("enabled", out var en) || en.GetInt32() == 1,
+                j.TryGetProperty("all", out var all) && all.GetInt32() == 1 ? "alle"
+                    : j.TryGetProperty("vmid", out var v) ? v.GetString() ?? "" : (j.TryGetProperty("pool", out var pl) ? "Pool " + pl.GetString() : "")))
+                .ToList();
+        }
+        catch (Exception ex) { log.LogWarning(ex, "backup jobs"); return []; }
+    }
+
+    public Task<string?> SetBackupJobEnabledAsync(string id, bool enabled)
+    {
+        var req = Req(HttpMethod.Put, $"/cluster/backup/{Uri.EscapeDataString(id)}");
+        req.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["enabled"] = enabled ? "1" : "0" });
+        return SendErr(req);
+    }
+
     /// Number of pending apt updates on the node (from the cached list; 0 on error).
     public async Task<int> GetUpdatesAsync(string node)
     {

@@ -75,16 +75,7 @@
         @if (gtasks.Count > 0)
         {
             <h2>Aktivität</h2>
-            <div class="tasks">
-                @foreach (var t in gtasks)
-                {
-                    <div class="task @(t.IsRunning ? "run" : t.Ok ? "ok" : "err")">
-                        <span class="tstate">@(t.IsRunning ? "läuft…" : t.Ok ? "✓" : "✗")</span>
-                        <span class="tt">@t.Type</span>
-                        <span class="ts muted">@t.Start.LocalDateTime.ToString("dd.MM HH:mm")</span>
-                    </div>
-                }
-            </div>
+            <TaskFeed Tasks="gtasks" Node="Data.Node" />
         }
 
         <div class="res-head">
@@ -121,6 +112,10 @@
             <a class="link-card" href="@PveUiUrl" target="_blank" rel="noopener">
                 <strong>Proxmox öffnen ↗</strong>
                 <span class="muted">Verwaltung / Konsole im PVE-Webinterface</span>
+            </a>
+            <a class="link-card" href="@ConsoleUrl" target="_blank" rel="noopener">
+                <strong>Konsole ↗</strong>
+                <span class="muted">noVNC-Konsole von @guest.Name direkt öffnen</span>
             </a>
 
             @if (served.Count > 0)
@@ -187,6 +182,9 @@
     }
 
     private string PveUiUrl => Conn.Current.PveBaseUrl.Replace("/api2/json", "");
+
+    private string ConsoleUrl => guest is null ? PveUiUrl
+        : $"{PveUiUrl}/?console={(guest.Type == "qemu" ? "kvm" : "lxc")}&novnc=1&vmid={guest.VmId}&node={guest.Node}&resize=off";
 
     protected override async Task OnInitializedAsync()
     {

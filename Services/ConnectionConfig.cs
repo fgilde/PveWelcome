@@ -27,6 +27,12 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
         foreach (var col in new[] { "BackupStorage", "NotifyWebhook", "TelegramToken", "TelegramChatId" })
             try { await db.Database.ExecuteSqlRawAsync($"ALTER TABLE \"Connections\" ADD COLUMN \"{col}\" TEXT NOT NULL DEFAULT '';"); }
             catch { /* column already exists */ }
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS \"Monitors\" (" +
+            "\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_Monitors\" PRIMARY KEY AUTOINCREMENT, " +
+            "\"Name\" TEXT NOT NULL, \"Url\" TEXT NOT NULL, \"Enabled\" INTEGER NOT NULL DEFAULT 1);");
+        try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Users\" ADD COLUMN \"TotpSecret\" TEXT NULL;"); }
+        catch { /* column already exists */ }
 
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is null)

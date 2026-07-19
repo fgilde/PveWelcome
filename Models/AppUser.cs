@@ -7,4 +7,6 @@ public class AppUser
     public string PasswordHash { get; set; } = "";
     public string Role { get; set; } = "Admin";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// Base32 TOTP secret; null/empty = 2FA disabled.
+    public string? TotpSecret { get; set; }
 }

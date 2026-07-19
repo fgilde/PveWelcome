@@ -28,6 +28,8 @@ builder.Services.AddDataProtection()
     .SetApplicationName("PveWelcome");
 builder.Services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<MonitorService>();
+builder.Services.AddSingleton<LoginThrottle>();
 
 // --- Config + services ---
 builder.Services.AddSingleton<ConnectionConfig>();
@@ -93,11 +95,19 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 
 // --- Auth endpoints (form posts from the static-SSR login page) ---
-app.MapPost("/auth/login", async (HttpContext ctx, UserService users,
-    [FromForm] string username, [FromForm] string password, [FromForm] string? returnUrl) =>
+app.MapPost("/auth/login", async (HttpContext ctx, UserService users, LoginThrottle throttle,
+    [FromForm] string username, [FromForm] string password, [FromForm] string? totp, [FromForm] string? returnUrl) =>
 {
+    var key = (username ?? "").Trim().ToLowerInvariant();
+    if (throttle.IsLocked(key)) return Results.Redirect("/login?error=locked");
     var u = await users.ValidateAsync(username ?? "", password ?? "");
-    if (u is null) return Results.Redirect("/login?error=1");
+    if (u is null) { throttle.Fail(key); return Results.Redirect("/login?error=1"); }
+    if (!string.IsNullOrEmpty(u.TotpSecret) && !Totp.Verify(u.TotpSecret, totp))
+    {
+        throttle.Fail(key);
+        return Results.Redirect("/login?error=2fa");
+    }
+    throttle.Reset(key);
     var claims = new List<Claim> { new(ClaimTypes.Name, u.Username), new(ClaimTypes.Role, u.Role) };
     var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
     await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));

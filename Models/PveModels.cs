@@ -37,6 +37,15 @@ public record PveTask(string Type, string Status, int? VmId, DateTimeOffset Star
 /// A guest snapshot.
 public record Snapshot(string Name, string? Description, DateTimeOffset? Time);
 
+/// A physical disk on the node (SMART health).
+public record DiskInfo(string DevPath, string Model, string Health, long Size, string Type)
+{
+    public bool Healthy => Health is "PASSED" or "OK" or "";
+}
+
+/// A scheduled cluster backup job.
+public record BackupJob(string Id, string Schedule, string Storage, bool Enabled, string Selection);
+
 /// A Proxmox storage pool on the node.
 public record StorageInfo(string Name, string Type, long Total, long Used, long Avail, string Content = "")
 {

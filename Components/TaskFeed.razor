@@ -1,0 +1,33 @@
+@inject PveClient Pve
+
+<div class="tasks">
+    @foreach (var t in Tasks)
+    {
+        <div class="task @(t.IsRunning ? "run" : t.Ok ? "ok" : "err") clickable" @onclick="() => Toggle(t)">
+            <span class="tstate">@(t.IsRunning ? "läuft…" : t.Ok ? "✓" : "✗")</span>
+            <span class="tt">@t.Label</span>
+            <span class="ts muted">@t.Start.LocalDateTime.ToString("dd.MM HH:mm")</span>
+        </div>
+        @if (openUpid == t.Upid)
+        {
+            <pre class="task-log">@(log ?? "lädt…")</pre>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<PveTask> Tasks { get; set; } = [];
+    [Parameter] public string? Node { get; set; }
+
+    private string? openUpid;
+    private string? log;
+
+    private async Task Toggle(PveTask t)
+    {
+        if (openUpid == t.Upid) { openUpid = null; log = null; return; }
+        openUpid = t.Upid;
+        log = null;
+        if (!string.IsNullOrEmpty(Node) && !string.IsNullOrEmpty(t.Upid))
+            log = await Pve.GetTaskLogAsync(Node, t.Upid);
+    }
+}

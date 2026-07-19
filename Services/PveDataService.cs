@@ -18,6 +18,11 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
     public IReadOnlyList<double> NodeMemHist { get; private set; } = [];
     public IReadOnlyList<PveTask> Tasks { get; private set; } = [];
     public int UpdatesAvailable { get; private set; }
+    public IReadOnlyList<DiskInfo> Disks { get; private set; } = [];
+    public IReadOnlyList<BackupJob> BackupJobs { get; private set; } = [];
+    public IReadOnlyList<UptimeMonitor> Monitors { get; private set; } = [];
+    /// monitor id -> reachable
+    public IReadOnlyDictionary<int, bool> MonitorUp { get; private set; } = new Dictionary<int, bool>();
     public string? Node { get; private set; }
     public IReadOnlyList<NpmHost> Hosts { get; private set; } = [];
     public IReadOnlyDictionary<int, BackupInfo> Backups { get; private set; } = new Dictionary<int, BackupInfo>();
@@ -63,10 +68,14 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
                 NodeMemHist = rrd.Select(p => p.Mem).ToList();
                 Tasks = await pve.GetTasksAsync(nodes[0]);
                 UpdatesAvailable = await pve.GetUpdatesAsync(nodes[0]);
+                Disks = await pve.GetDisksAsync(nodes[0]);
+                BackupJobs = await pve.GetBackupJobsAsync();
             }
             Guests = await pve.GetGuestsAsync();
             Hosts = await npm.GetHostsAsync();
             DomainUp = await CheckDomainsAsync(Hosts);
+            Monitors = await scope.ServiceProvider.GetRequiredService<MonitorService>().ListAsync();
+            MonitorUp = await CheckMonitorsAsync(Monitors);
             LastUpdated = DateTime.Now;
             await NotifyNewAlertsAsync();
         }
@@ -100,6 +109,10 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
                 list.Add($"{noBackup} Guest(s) ohne Backup");
             if (UpdatesAvailable > 0)
                 list.Add($"{UpdatesAvailable} Paket-Update(s) am Node verfügbar");
+            foreach (var d in Disks.Where(d => !d.Healthy && d.Health is not ("UNKNOWN" or "")))
+                list.Add($"Platte {d.DevPath} SMART-Status: {d.Health}");
+            foreach (var m in Monitors.Where(m => m.Enabled && MonitorUp.TryGetValue(m.Id, out var up) && !up))
+                list.Add($"Monitor '{m.Name}' nicht erreichbar");
             return list;
         }
     }
@@ -164,6 +177,24 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
         });
         var results = new Dictionary<string, bool>();
         foreach (var (d, up) in await Task.WhenAll(tasks)) results[d] = up;
+        return results;
+    }
+
+    /// Reachability of each user-defined uptime monitor.
+    private async Task<Dictionary<int, bool>> CheckMonitorsAsync(IReadOnlyList<UptimeMonitor> monitors)
+    {
+        var client = httpFactory.CreateClient("reach");
+        var tasks = monitors.Where(m => m.Enabled).Select(async m =>
+        {
+            try
+            {
+                using var res = await client.GetAsync(m.Url, HttpCompletionOption.ResponseHeadersRead);
+                return (m.Id, up: (int)res.StatusCode < 500);
+            }
+            catch { return (m.Id, up: false); }
+        });
+        var results = new Dictionary<int, bool>();
+        foreach (var (id, up) in await Task.WhenAll(tasks)) results[id] = up;
         return results;
     }
 

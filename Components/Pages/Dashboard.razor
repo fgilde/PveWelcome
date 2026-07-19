@@ -139,19 +139,61 @@
         </div>
     }
 
-    @if (Data.Tasks.Count > 0)
+    @if (Data.Disks.Count > 0)
     {
-        <h2>Aktivität</h2>
-        <div class="tasks">
-            @foreach (var t in Data.Tasks.Take(10))
+        <h2>Platten (SMART)</h2>
+        <section class="health storage">
+            @foreach (var d in Data.Disks)
             {
-                <div class="task @(t.IsRunning ? "run" : t.Ok ? "ok" : "err")">
-                    <span class="tstate">@(t.IsRunning ? "läuft…" : t.Ok ? "✓" : "✗")</span>
-                    <span class="tt">@t.Label</span>
-                    <span class="ts muted">@t.Start.LocalDateTime.ToString("dd.MM HH:mm")</span>
+                <div class="metric">
+                    <span class="label">@d.DevPath <small>@d.Type</small></span>
+                    <span class="val">@Format.Bytes(d.Size)</span>
+                    <span class="sub"><span class="pill @(d.Healthy ? "on" : "warn")">@(string.IsNullOrEmpty(d.Health) ? "?" : d.Health)</span> @d.Model</span>
+                </div>
+            }
+        </section>
+    }
+
+    @if (Data.Monitors.Count > 0)
+    {
+        <h2>Monitore</h2>
+        <div class="bindings">
+            @foreach (var m in Data.Monitors)
+            {
+                var mup = Data.MonitorUp.TryGetValue(m.Id, out var u) && u;
+                <div class="binding @(m.Enabled ? "" : "disabled")">
+                    <div class="domains"><a href="@m.Url" target="_blank" rel="noopener">@m.Name ↗</a></div>
+                    <div class="target">@m.Url</div>
+                    <div class="flags">
+                        <span class="pill @(!m.Enabled ? "off" : mup ? "on" : "warn")">@(!m.Enabled ? "aus" : mup ? "online" : "nicht erreichbar")</span>
+                    </div>
                 </div>
             }
         </div>
+    }
+
+    @if (Data.BackupJobs.Count > 0)
+    {
+        <h2>Backup-Jobs</h2>
+        <div class="bindings">
+            @foreach (var j in Data.BackupJobs)
+            {
+                <div class="binding @(j.Enabled ? "" : "disabled")">
+                    <div class="domains">@(string.IsNullOrEmpty(j.Schedule) ? "(kein Zeitplan)" : j.Schedule) · @j.Selection</div>
+                    <div class="target">→ @j.Storage</div>
+                    <div class="flags">
+                        <button class="btn xs" @onclick="() => ToggleJob(j)">@(j.Enabled ? "deaktivieren" : "aktivieren")</button>
+                        <span class="pill @(j.Enabled ? "on" : "off")">@(j.Enabled ? "aktiv" : "aus")</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (Data.Tasks.Count > 0)
+    {
+        <h2>Aktivität</h2>
+        <TaskFeed Tasks="Data.Tasks.Take(10).ToList()" Node="Data.Node" />
     }
 
     <h2>NPM Bindings <span class="count @(DomainsUp() == DomainsTotal() ? "ok" : "warn")">@DomainsUp()/@DomainsTotal() extern online</span></h2>
@@ -226,6 +268,13 @@
     private static string Key(PveGuest g) => $"{g.Type}-{g.VmId}";
 
     private Task Refresh() => Data.RefreshAsync();
+
+    private async Task ToggleJob(BackupJob j)
+    {
+        var err = await Pve.SetBackupJobEnabledAsync(j.Id, !j.Enabled);
+        bkpMsg = err is null ? $"Backup-Job {(j.Enabled ? "deaktiviert" : "aktiviert")}." : $"Fehler: {err}";
+        await Data.RefreshAsync();
+    }
 
     private async Task Act(PveGuest g, string action)
     {

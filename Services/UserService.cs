@@ -41,6 +41,18 @@ public class UserService(AppDbContext db, IPasswordHasher<AppUser> hasher)
         return true;
     }
 
+    public Task<AppUser?> FindAsync(int id) => db.Users.FirstOrDefaultAsync(u => u.Id == id);
+
+    /// Enable (secret) or disable (null) 2FA for a user.
+    public async Task<bool> SetTotpAsync(int id, string? secret)
+    {
+        var u = await db.Users.FindAsync(id);
+        if (u is null) return false;
+        u.TotpSecret = secret;
+        await db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> SetPasswordAsync(int id, string newPassword)
     {
         if (string.IsNullOrWhiteSpace(newPassword)) return false;
