@@ -1,0 +1,63 @@
+@page "/admin/settings"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject BrandResolver Brands
+
+<PageTitle>Einstellungen</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <h1>Einstellungen — Welcome-Seiten</h1>
+    <p class="muted">Pro Domain: Name, Tagline, Akzentfarbe und der externe Link. Host <code>default</code> greift, wenn keine Domain passt.</p>
+
+    @foreach (var b in brands)
+    {
+        <div class="settings-card">
+            <div class="settings-host"><span class="dot" style="background:@b.Accent"></span> @b.Host</div>
+            <div class="settings-grid">
+                <label>Name<input @bind="b.Name" /></label>
+                <label>Tagline<input @bind="b.Tagline" /></label>
+                <label>Akzent<input type="color" @bind="b.Accent" /></label>
+                <label>Projekt-Link<input @bind="b.ProjectsUrl" /></label>
+            </div>
+            <button class="btn sm go" @onclick="() => Save(b)">Speichern</button>
+        </div>
+    }
+
+    <h2>Neue Domain</h2>
+    <div class="add-brand">
+        <input placeholder="host (z.B. foo.de)" @bind="newHost" />
+        <input placeholder="Name" @bind="newName" />
+        <button class="btn sm" @onclick="Add">Hinzufügen</button>
+    </div>
+
+    @if (msg is not null)
+    {
+        <p class="muted">@msg</p>
+    }
+</div>
+
+@code {
+    private List<BrandConfig> brands = [];
+    private string newHost = "";
+    private string newName = "";
+    private string? msg;
+
+    protected override async Task OnInitializedAsync() => brands = await Brands.GetAllAsync();
+
+    private async Task Save(BrandConfig b)
+    {
+        await Brands.SaveAsync(b);
+        msg = $"'{b.Host}' gespeichert.";
+    }
+
+    private async Task Add()
+    {
+        if (string.IsNullOrWhiteSpace(newHost)) { msg = "Host nötig."; return; }
+        await Brands.AddAsync(new BrandConfig { Host = newHost.Trim().ToLowerInvariant(), Name = string.IsNullOrWhiteSpace(newName) ? newHost : newName });
+        newHost = ""; newName = "";
+        brands = await Brands.GetAllAsync();
+        msg = "Domain hinzugefügt.";
+    }
+}

@@ -1,8 +1,9 @@
 @page "/resource/{VmId:int}"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
+@inject PveDataService Data
 @inject PveClient Pve
-@inject NpmClient Npm
 @inject Microsoft.Extensions.Options.IOptions<PveOptions> PveOpt
 
 <PageTitle>@(guest?.Name ?? "Resource")</PageTitle>
@@ -12,17 +13,21 @@
 <div class="page-wrap">
     <a class="back" href="/dashboard">← Dashboard</a>
 
-    @if (loading)
+    @if (guest is null)
     {
-        <p class="muted">Lade…</p>
-    }
-    else if (guest is null)
-    {
-        <h1>Nicht gefunden</h1>
-        <p class="muted">Keine Ressource mit #@VmId.</p>
+        @if (Data.LastUpdated == default)
+        {
+            <p class="muted">Lade…</p>
+        }
+        else
+        {
+            <h1>Nicht gefunden</h1>
+            <p class="muted">Keine Ressource mit #@VmId.</p>
+        }
     }
     else
     {
+        var served = Data.HostsFor(guest);
         <div class="detail-head">
             <div>
                 <span class="kind big">@guest.Kind</span>
@@ -50,6 +55,7 @@
             <div><span class="label">RAM</span><span class="val">@Format.Bytes(guest.MemUsed) / @Format.Bytes(guest.MemMax)</span></div>
             <div><span class="label">Disk</span><span class="val">@Format.Bytes(guest.DiskUsed) / @Format.Bytes(guest.DiskMax)</span></div>
             <div><span class="label">Uptime</span><span class="val">@Format.Uptime(guest.Uptime)</span></div>
+            <div><span class="label">Bedient</span><span class="val">@served.Count Domain(s)</span></div>
         </section>
 
         <h2>Links</h2>
@@ -59,15 +65,15 @@
                 <span class="muted">Verwaltung / Konsole im PVE-Webinterface</span>
             </a>
 
-            @if (relatedHosts.Count > 0)
+            @if (served.Count > 0)
             {
-                @foreach (var h in relatedHosts)
+                @foreach (var h in served)
                 {
                     @foreach (var d in h.DomainNames)
                     {
                         <a class="link-card" href="https://@d" target="_blank" rel="noopener">
                             <strong>@d ↗</strong>
-                            <span class="muted">bedient von dieser Ressource (Port @h.ForwardPort)</span>
+                            <span class="muted">bedient von dieser Ressource (Port @h.ForwardPort · @(h.Online ? "online" : "offline"))</span>
                         </a>
                     }
                 }
@@ -84,31 +90,22 @@
     [Parameter] public int VmId { get; set; }
 
     private PveGuest? guest;
-    private List<NpmHost> relatedHosts = [];
-    private bool loading = true;
     private bool busy;
 
     private string PveUiUrl => PveOpt.Value.BaseUrl.Replace("/api2/json", "");
 
-    protected override async Task OnInitializedAsync() => await Load();
-
-    private async Task Load()
+    protected override async Task OnInitializedAsync()
     {
-        loading = true;
-        StateHasChanged();
-        var guests = await Pve.GetGuestsAsync();
-        guest = guests.FirstOrDefault(g => g.VmId == VmId);
-        if (guest?.Ip is not null)
-        {
-            var hosts = await Npm.GetHostsAsync();
-            relatedHosts = hosts.Where(h => h.ForwardHost == guest.Ip).ToList();
-        }
-        else
-        {
-            relatedHosts = [];
-        }
-        loading = false;
+        Data.Changed += OnChanged;
+        if (Data.LastUpdated == default) await Data.RefreshAsync();
+        Resolve();
     }
+
+    protected override void OnParametersSet() => Resolve();
+
+    private void Resolve() => guest = Data.Guests.FirstOrDefault(g => g.VmId == VmId);
+
+    private void OnChanged() => InvokeAsync(() => { Resolve(); StateHasChanged(); });
 
     private async Task Act(string action)
     {
@@ -117,7 +114,10 @@
         StateHasChanged();
         await Pve.ActionAsync(guest.Node, guest.Type, guest.VmId, action);
         await Task.Delay(2000);
-        await Load();
+        await Data.RefreshAsync();
+        Resolve();
         busy = false;
     }
+
+    public void Dispose() => Data.Changed -= OnChanged;
 }

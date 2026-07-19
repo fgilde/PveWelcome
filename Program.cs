@@ -33,6 +33,8 @@ builder.Services.AddScoped<UserService>();
 builder.Services.Configure<PveOptions>(builder.Configuration.GetSection("Pve"));
 builder.Services.Configure<NpmOptions>(builder.Configuration.GetSection("Npm"));
 builder.Services.AddSingleton<BrandResolver>();
+builder.Services.AddSingleton<PveDataService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PveDataService>());
 
 // --- API clients ---
 builder.Services.AddHttpClient<PveClient>((sp, c) =>
@@ -76,6 +78,7 @@ using (var scope = app.Services.CreateScope())
         app.Configuration["Admin:User"] ?? app.Configuration["ADMIN_USER"],
         app.Configuration["Admin:Password"] ?? app.Configuration["ADMIN_PASSWORD"]);
 }
+await app.Services.GetRequiredService<BrandResolver>().InitAsync(app.Configuration);
 
 if (!app.Environment.IsDevelopment())
 {

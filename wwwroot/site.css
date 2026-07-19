@@ -170,3 +170,30 @@ a { color: inherit; text-decoration: none; }
 .user-row .pw-inline { margin-left: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .35rem .6rem; color: var(--text); font-size: .82rem; font-family: inherit; width: 160px; }
 .user-row .pw-inline:focus { outline: none; border-color: var(--accent); }
 .add-user { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+
+/* served-domains badge on tiles */
+.serve-badge { font-size: .75rem; font-weight: 600; padding: .15rem .5rem; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--accent) 15%, transparent); color: color-mix(in srgb, var(--accent) 85%, #fff); cursor: help; }
+
+/* head-right (dashboard refresh + stamp) */
+.head-right { display: flex; align-items: center; gap: .8rem; }
+.stamp { font-size: .8rem; }
+
+/* settings */
+.settings-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2rem; margin-bottom: 1rem; }
+.settings-host { font-weight: 700; display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+.settings-host code { background: var(--panel-2); padding: .1rem .4rem; border-radius: 6px; font-size: .85rem; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.settings-grid label, .npm-form label { display: flex; flex-direction: column; gap: .35rem; font-size: .8rem; color: var(--muted); }
+.settings-grid input, .npm-form input, .npm-form select, .add-brand input {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .7rem; color: var(--text); font-family: inherit; font-size: .9rem;
+}
+.settings-grid input:focus, .npm-form input:focus { outline: none; border-color: var(--accent); }
+.settings-grid input[type=color] { height: 40px; padding: .2rem; cursor: pointer; }
+.add-brand { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+
+/* npm manager */
+.npm-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.npm-form { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; max-width: 720px; }
+.npm-form .row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+.npm-form label.cb { flex-direction: row; align-items: center; gap: .4rem; }
+.npm-form input[type=number] { width: 100px; }

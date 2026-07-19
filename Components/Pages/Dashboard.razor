@@ -1,8 +1,9 @@
 @page "/dashboard"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
+@inject PveDataService Data
 @inject PveClient Pve
-@inject NpmClient Npm
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -11,47 +12,40 @@
 <div class="page-wrap">
     <div class="page-head">
         <h1>Dashboard</h1>
-        <button class="btn btn-ghost sm" @onclick="Load" disabled="@loading">@(loading ? "…" : "↻ Refresh")</button>
+        <div class="head-right">
+            @if (Data.LastUpdated != default)
+            {
+                <span class="muted stamp">@(Data.Refreshing ? "aktualisiert…" : $"Stand {Data.LastUpdated:HH:mm:ss}")</span>
+            }
+            <button class="btn btn-ghost sm" @onclick="Refresh" disabled="@Data.Refreshing">↻ Refresh</button>
+        </div>
     </div>
 
-    @if (health is not null)
+    @if (Data.Health is not null)
     {
+        var h = Data.Health;
         <section class="health">
-            <div class="metric">
-                <span class="label">Node</span>
-                <span class="val">@health.Node</span>
-            </div>
-            <div class="metric">
-                <span class="label">CPU</span>
-                <span class="val">@Format.Pct(health.CpuFraction)</span>
-                <div class="bar"><i style="width:@(Math.Min(100, health.CpuFraction*100))%"></i></div>
-            </div>
-            <div class="metric">
-                <span class="label">RAM</span>
-                <span class="val">@Format.Bytes(health.MemUsed) / @Format.Bytes(health.MemMax)</span>
-                <div class="bar"><i style="width:@(health.MemMax>0 ? health.MemUsed*100.0/health.MemMax : 0)%"></i></div>
-            </div>
-            <div class="metric">
-                <span class="label">Load</span>
-                <span class="val">@health.LoadAvg1.ToString("0.00")</span>
-            </div>
-            <div class="metric">
-                <span class="label">Uptime</span>
-                <span class="val">@Format.Uptime(health.Uptime)</span>
-            </div>
+            <div class="metric"><span class="label">Node</span><span class="val">@h.Node</span></div>
+            <div class="metric"><span class="label">CPU</span><span class="val">@Format.Pct(h.CpuFraction)</span>
+                <div class="bar"><i style="width:@(Math.Min(100, h.CpuFraction*100))%"></i></div></div>
+            <div class="metric"><span class="label">RAM</span><span class="val">@Format.Bytes(h.MemUsed) / @Format.Bytes(h.MemMax)</span>
+                <div class="bar"><i style="width:@(h.MemMax>0 ? h.MemUsed*100.0/h.MemMax : 0)%"></i></div></div>
+            <div class="metric"><span class="label">Load</span><span class="val">@h.LoadAvg1.ToString("0.00")</span></div>
+            <div class="metric"><span class="label">Uptime</span><span class="val">@Format.Uptime(h.Uptime)</span></div>
         </section>
     }
 
     <h2>Ressourcen</h2>
-    @if (loading && guests.Count == 0)
+    @if (Data.Guests.Count == 0)
     {
-        <p class="muted">Lade…</p>
+        <p class="muted">@(Data.LastUpdated == default ? "Lade…" : "Keine Ressourcen.")</p>
     }
     else
     {
         <div class="grid">
-            @foreach (var g in guests)
+            @foreach (var g in Data.Guests)
             {
+                var served = Data.HostsFor(g);
                 <div class="card @(g.IsRunning ? "up" : "down")">
                     <a class="card-head" href="/resource/@g.VmId">
                         <span class="kind">@g.Kind</span>
@@ -63,6 +57,10 @@
                         @if (g.Ip is not null)
                         {
                             <span class="ip">@g.Ip</span>
+                        }
+                        @if (served.Count > 0)
+                        {
+                            <span class="serve-badge" title="@ServedTooltip(served)">🔗 @served.Count</span>
                         }
                     </div>
                     @if (g.IsRunning)
@@ -89,26 +87,26 @@
         </div>
     }
 
-    <h2>NPM Bindings <span class="count">@hosts.Count</span></h2>
+    <h2>NPM Bindings <span class="count">@Data.Hosts.Count</span></h2>
     <div class="bindings">
-        @foreach (var h in hosts.OrderBy(h => h.DomainNames.FirstOrDefault()))
+        @foreach (var host in Data.Hosts.OrderBy(h => h.DomainNames.FirstOrDefault()))
         {
-            <div class="binding @(h.Enabled ? "" : "disabled")">
+            <div class="binding @(host.Enabled ? "" : "disabled")">
                 <div class="domains">
-                    @foreach (var d in h.DomainNames)
+                    @foreach (var d in host.DomainNames)
                     {
                         <a href="https://@d" target="_blank" rel="noopener">@d ↗</a>
                     }
                 </div>
-                <div class="target">→ @h.ForwardScheme://@h.ForwardHost:@h.ForwardPort</div>
+                <div class="target">→ @host.ForwardScheme://@host.ForwardHost:@host.ForwardPort</div>
                 <div class="flags">
-                    @if (!h.Enabled)
+                    @if (!host.Enabled)
                     {
                         <span class="pill off">disabled</span>
                     }
                     else
                     {
-                        <span class="pill @(h.Online ? "on" : "warn")">@(h.Online ? "online" : "offline")</span>
+                        <span class="pill @(host.Online ? "on" : "warn")">@(host.Online ? "online" : "offline")</span>
                     }
                 </div>
             </div>
@@ -117,27 +115,23 @@
 </div>
 
 @code {
-    private NodeStatus? health;
-    private List<PveGuest> guests = [];
-    private List<NpmHost> hosts = [];
-    private bool loading = true;
     private string? busyKey;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += OnChanged;
+        if (Data.LastUpdated == default) await Data.RefreshAsync();
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private static string ServedTooltip(List<NpmHost> hosts) =>
+        string.Join("\n", hosts.Select(h => $"{string.Join(", ", h.DomainNames)}  (:{h.ForwardPort}, {(h.Online ? "online" : "offline")})"));
 
     private bool IsBusy(PveGuest g) => busyKey == Key(g);
     private static string Key(PveGuest g) => $"{g.Type}-{g.VmId}";
 
-    private async Task Load()
-    {
-        loading = true;
-        StateHasChanged();
-        var nodes = await Pve.GetNodesAsync();
-        if (nodes.Count > 0) health = await Pve.GetNodeStatusAsync(nodes[0]);
-        guests = await Pve.GetGuestsAsync();
-        hosts = await Npm.GetHostsAsync();
-        loading = false;
-    }
+    private Task Refresh() => Data.RefreshAsync();
 
     private async Task Act(PveGuest g, string action)
     {
@@ -145,7 +139,9 @@
         StateHasChanged();
         await Pve.ActionAsync(g.Node, g.Type, g.VmId, action);
         await Task.Delay(2000);
-        await Load();
+        await Data.RefreshAsync();
         busyKey = null;
     }
+
+    public void Dispose() => Data.Changed -= OnChanged;
 }

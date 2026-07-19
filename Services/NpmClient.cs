@@ -70,4 +70,51 @@ public class NpmClient(HttpClient http, IOptions<NpmOptions> options, ILogger<Np
         }
         catch (Exception ex) { log.LogWarning(ex, "npm hosts"); return []; }
     }
+
+    private object BuildPayload(string[] domains, string scheme, string host, int port, bool ws, string advanced) => new
+    {
+        domain_names = domains,
+        forward_scheme = scheme,
+        forward_host = host,
+        forward_port = port,
+        block_exploits = true,
+        allow_websocket_upgrade = ws,
+        access_list_id = 0,
+        certificate_id = 0,
+        ssl_forced = false,
+        caching_enabled = false,
+        http2_support = false,
+        hsts_enabled = false,
+        advanced_config = advanced,
+        locations = Array.Empty<object>(),
+        meta = new { }
+    };
+
+    private async Task<bool> SendAsync(HttpMethod method, string path, object? body)
+    {
+        if (string.IsNullOrWhiteSpace(opt.BaseUrl)) return false;
+        var token = await GetTokenAsync();
+        if (token is null) return false;
+        try
+        {
+            using var req = new HttpRequestMessage(method, $"{opt.BaseUrl}{path}");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (body is not null) req.Content = JsonContent.Create(body);
+            using var res = await http.SendAsync(req);
+            return res.IsSuccessStatusCode;
+        }
+        catch (Exception ex) { log.LogWarning(ex, "npm {Method} {Path}", method, path); return false; }
+    }
+
+    public Task<bool> CreateHostAsync(string[] domains, string scheme, string host, int port, bool ws, string advanced = "")
+        => SendAsync(HttpMethod.Post, "/api/nginx/proxy-hosts", BuildPayload(domains, scheme, host, port, ws, advanced));
+
+    public Task<bool> UpdateHostAsync(int id, string[] domains, string scheme, string host, int port, bool ws, string advanced = "")
+        => SendAsync(HttpMethod.Put, $"/api/nginx/proxy-hosts/{id}", BuildPayload(domains, scheme, host, port, ws, advanced));
+
+    public Task<bool> SetEnabledAsync(int id, bool enabled)
+        => SendAsync(HttpMethod.Post, $"/api/nginx/proxy-hosts/{id}/{(enabled ? "enable" : "disable")}", null);
+
+    public Task<bool> DeleteHostAsync(int id)
+        => SendAsync(HttpMethod.Delete, $"/api/nginx/proxy-hosts/{id}", null);
 }
