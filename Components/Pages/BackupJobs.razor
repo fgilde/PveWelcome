@@ -37,12 +37,18 @@
                 </label>
                 <label>Behalten pro Guest<input type="number" min="1" @bind="j.KeepLast" /></label>
                 <label class="chk">Alle Guests<input type="checkbox" @bind="j.All" /></label>
-                @if (!j.All)
-                {
-                    <label>VMIDs (Komma)<input @bind="j.Vmid" placeholder="300,301" /></label>
-                }
                 <label class="chk">Aktiv<input type="checkbox" @bind="j.Enabled" /></label>
             </div>
+            @if (!j.All)
+            {
+                <div class="guest-pick">
+                    @foreach (var g in Data.Guests)
+                    {
+                        <label class="chk"><input type="checkbox" checked="@j.Vmids.Contains(g.VmId)"
+                            @onchange="e => Toggle(j, g.VmId, (bool)e.Value!)" /> @g.Name <span class="muted">#@g.VmId</span></label>
+                    }
+                </div>
+            }
             <button class="btn sm go" @onclick="() => Save(j)">Speichern</button>
             <button class="btn sm danger" @onclick="() => Del(j)">Löschen</button>
         </div>
@@ -63,11 +69,17 @@
             </label>
             <label>Behalten pro Guest<input type="number" min="1" @bind="nw.KeepLast" /></label>
             <label class="chk">Alle Guests<input type="checkbox" @bind="nw.All" /></label>
-            @if (!nw.All)
-            {
-                <label>VMIDs (Komma)<input @bind="nw.Vmid" placeholder="300,301" /></label>
-            }
         </div>
+        @if (!nw.All)
+        {
+            <div class="guest-pick">
+                @foreach (var g in Data.Guests)
+                {
+                    <label class="chk"><input type="checkbox" checked="@nw.Vmids.Contains(g.VmId)"
+                        @onchange="e => Toggle(nw, g.VmId, (bool)e.Value!)" /> @g.Name <span class="muted">#@g.VmId</span></label>
+                }
+            </div>
+        }
         <button class="btn sm go" @onclick="Create">Anlegen</button>
     </div>
 </div>
@@ -80,8 +92,14 @@
         public string Storage = "";
         public int KeepLast = 1;
         public bool All = true;
-        public string Vmid = "";
+        public HashSet<int> Vmids = new();
         public bool Enabled = true;
+        public string VmidCsv => string.Join(",", Vmids.OrderBy(x => x));
+    }
+
+    private static void Toggle(JobEdit j, int vmid, bool on)
+    {
+        if (on) j.Vmids.Add(vmid); else j.Vmids.Remove(vmid);
     }
 
     private List<JobEdit> jobs = [];
@@ -101,13 +119,15 @@
     private void Load() => jobs = Data.BackupJobs.Select(j => new JobEdit
     {
         Id = j.Id, Schedule = j.Schedule, Storage = j.Storage,
-        KeepLast = Math.Max(1, j.KeepLast), All = j.All, Vmid = j.Vmid, Enabled = j.Enabled
+        KeepLast = Math.Max(1, j.KeepLast), All = j.All, Enabled = j.Enabled,
+        Vmids = j.Vmid.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                     .Select(s => int.TryParse(s, out var v) ? v : -1).Where(v => v > 0).ToHashSet()
     }).ToList();
 
     private async Task Save(JobEdit j)
     {
-        if (!j.All && string.IsNullOrWhiteSpace(j.Vmid)) { msg = "VMIDs angeben oder 'Alle Guests' wählen."; return; }
-        var err = await Pve.UpdateBackupJobAsync(j.Id, j.Schedule.Trim(), j.Storage, j.KeepLast, j.All, j.Vmid.Trim(), j.Enabled);
+        if (!j.All && j.Vmids.Count == 0) { msg = "Mindestens einen Guest wählen oder 'Alle Guests'."; return; }
+        var err = await Pve.UpdateBackupJobAsync(j.Id, j.Schedule.Trim(), j.Storage, j.KeepLast, j.All, j.VmidCsv, j.Enabled);
         msg = err is null ? "Gespeichert." : $"Fehler: {err}";
         await Data.RefreshAsync();
     }
@@ -115,8 +135,8 @@
     private async Task Create()
     {
         if (string.IsNullOrWhiteSpace(nw.Storage)) { msg = "Ziel-Storage wählen."; return; }
-        if (!nw.All && string.IsNullOrWhiteSpace(nw.Vmid)) { msg = "VMIDs angeben oder 'Alle Guests' wählen."; return; }
-        var err = await Pve.CreateBackupJobAsync(nw.Schedule.Trim(), nw.Storage, nw.KeepLast, nw.All, nw.Vmid.Trim());
+        if (!nw.All && nw.Vmids.Count == 0) { msg = "Mindestens einen Guest wählen oder 'Alle Guests'."; return; }
+        var err = await Pve.CreateBackupJobAsync(nw.Schedule.Trim(), nw.Storage, nw.KeepLast, nw.All, nw.VmidCsv);
         msg = err is null ? "Job angelegt." : $"Fehler: {err}";
         nw = new() { Schedule = "03:00", KeepLast = 1, All = true, Storage = Data.BackupStorages.FirstOrDefault() ?? "" };
         await Data.RefreshAsync();
@@ -124,7 +144,7 @@
 
     private async Task Del(JobEdit j)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Backup-Job ({(j.All ? "alle Guests" : j.Vmid)} → {j.Storage}) löschen?")) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Backup-Job ({(j.All ? "alle Guests" : j.VmidCsv)} → {j.Storage}) löschen?")) return;
         var err = await Pve.DeleteBackupJobAsync(j.Id);
         msg = err is null ? "Gelöscht." : $"Fehler: {err}";
         await Data.RefreshAsync();
