@@ -1,0 +1,134 @@
+@page "/admin/backups"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@implements IDisposable
+@inject PveDataService Data
+@inject PveClient Pve
+@inject IJSRuntime JS
+
+<PageTitle>Backup-Jobs</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <h1>Backup-Jobs</h1>
+    <p class="muted">Zeitplan, Ziel-Storage und <strong>Aufbewahrung</strong> (wie viele Backups pro Guest behalten werden). 1 spart am meisten Platz.</p>
+    @if (msg is not null)
+    {
+        <p class="muted">@msg</p>
+    }
+
+    @if (jobs.Count == 0)
+    {
+        <p class="muted">@(Data.LastUpdated == default ? "Lade…" : "Keine Backup-Jobs.")</p>
+    }
+    @foreach (var j in jobs)
+    {
+        <div class="settings-card">
+            <div class="settings-grid">
+                <label>Zeit (HH:MM)<input @bind="j.Schedule" placeholder="03:00" /></label>
+                <label>Ziel-Storage
+                    <select @bind="j.Storage">
+                        @foreach (var s in Data.BackupStorages)
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
+                </label>
+                <label>Behalten pro Guest<input type="number" min="1" @bind="j.KeepLast" /></label>
+                <label class="chk">Alle Guests<input type="checkbox" @bind="j.All" /></label>
+                @if (!j.All)
+                {
+                    <label>VMIDs (Komma)<input @bind="j.Vmid" placeholder="300,301" /></label>
+                }
+                <label class="chk">Aktiv<input type="checkbox" @bind="j.Enabled" /></label>
+            </div>
+            <button class="btn sm go" @onclick="() => Save(j)">Speichern</button>
+            <button class="btn sm danger" @onclick="() => Del(j)">Löschen</button>
+        </div>
+    }
+
+    <h2>Neuer Job</h2>
+    <div class="settings-card">
+        <div class="settings-grid">
+            <label>Zeit (HH:MM)<input @bind="nw.Schedule" placeholder="03:00" /></label>
+            <label>Ziel-Storage
+                <select @bind="nw.Storage">
+                    <option value="">(wählen)</option>
+                    @foreach (var s in Data.BackupStorages)
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </select>
+            </label>
+            <label>Behalten pro Guest<input type="number" min="1" @bind="nw.KeepLast" /></label>
+            <label class="chk">Alle Guests<input type="checkbox" @bind="nw.All" /></label>
+            @if (!nw.All)
+            {
+                <label>VMIDs (Komma)<input @bind="nw.Vmid" placeholder="300,301" /></label>
+            }
+        </div>
+        <button class="btn sm go" @onclick="Create">Anlegen</button>
+    </div>
+</div>
+
+@code {
+    private sealed class JobEdit
+    {
+        public string Id = "";
+        public string Schedule = "";
+        public string Storage = "";
+        public int KeepLast = 1;
+        public bool All = true;
+        public string Vmid = "";
+        public bool Enabled = true;
+    }
+
+    private List<JobEdit> jobs = [];
+    private JobEdit nw = new() { Schedule = "03:00", KeepLast = 1, All = true };
+    private string? msg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += OnChanged;
+        if (Data.LastUpdated == default) await Data.RefreshAsync();
+        Load();
+        if (string.IsNullOrEmpty(nw.Storage)) nw.Storage = Data.BackupStorages.FirstOrDefault() ?? "";
+    }
+
+    private void OnChanged() => InvokeAsync(() => { Load(); StateHasChanged(); });
+
+    private void Load() => jobs = Data.BackupJobs.Select(j => new JobEdit
+    {
+        Id = j.Id, Schedule = j.Schedule, Storage = j.Storage,
+        KeepLast = Math.Max(1, j.KeepLast), All = j.All, Vmid = j.Vmid, Enabled = j.Enabled
+    }).ToList();
+
+    private async Task Save(JobEdit j)
+    {
+        if (!j.All && string.IsNullOrWhiteSpace(j.Vmid)) { msg = "VMIDs angeben oder 'Alle Guests' wählen."; return; }
+        var err = await Pve.UpdateBackupJobAsync(j.Id, j.Schedule.Trim(), j.Storage, j.KeepLast, j.All, j.Vmid.Trim(), j.Enabled);
+        msg = err is null ? "Gespeichert." : $"Fehler: {err}";
+        await Data.RefreshAsync();
+    }
+
+    private async Task Create()
+    {
+        if (string.IsNullOrWhiteSpace(nw.Storage)) { msg = "Ziel-Storage wählen."; return; }
+        if (!nw.All && string.IsNullOrWhiteSpace(nw.Vmid)) { msg = "VMIDs angeben oder 'Alle Guests' wählen."; return; }
+        var err = await Pve.CreateBackupJobAsync(nw.Schedule.Trim(), nw.Storage, nw.KeepLast, nw.All, nw.Vmid.Trim());
+        msg = err is null ? "Job angelegt." : $"Fehler: {err}";
+        nw = new() { Schedule = "03:00", KeepLast = 1, All = true, Storage = Data.BackupStorages.FirstOrDefault() ?? "" };
+        await Data.RefreshAsync();
+    }
+
+    private async Task Del(JobEdit j)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Backup-Job ({(j.All ? "alle Guests" : j.Vmid)} → {j.Storage}) löschen?")) return;
+        var err = await Pve.DeleteBackupJobAsync(j.Id);
+        msg = err is null ? "Gelöscht." : $"Fehler: {err}";
+        await Data.RefreshAsync();
+    }
+
+    public void Dispose() => Data.Changed -= OnChanged;
+}

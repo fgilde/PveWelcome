@@ -44,7 +44,10 @@ public record DiskInfo(string DevPath, string Model, string Health, long Size, s
 }
 
 /// A scheduled cluster backup job.
-public record BackupJob(string Id, string Schedule, string Storage, bool Enabled, string Selection);
+public record BackupJob(string Id, string Schedule, string Storage, bool Enabled, bool All, string Vmid, int KeepLast)
+{
+    public string Selection => All ? "alle" : string.IsNullOrEmpty(Vmid) ? "?" : Vmid;
+}
 
 /// A Proxmox storage pool on the node.
 public record StorageInfo(string Name, string Type, long Total, long Used, long Avail, string Content = "")

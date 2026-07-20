@@ -183,17 +183,67 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
         try
         {
             var data = await GetDataAsync("/cluster/backup");
-            return data.EnumerateArray().Select(j => new BackupJob(
-                j.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "",
-                j.TryGetProperty("schedule", out var s) ? s.GetString() ?? "" : (j.TryGetProperty("starttime", out var st) ? st.GetString() ?? "" : ""),
-                j.TryGetProperty("storage", out var stg) ? stg.GetString() ?? "" : "",
-                !j.TryGetProperty("enabled", out var en) || en.GetInt32() == 1,
-                j.TryGetProperty("all", out var all) && all.GetInt32() == 1 ? "alle"
-                    : j.TryGetProperty("vmid", out var v) ? v.GetString() ?? "" : (j.TryGetProperty("pool", out var pl) ? "Pool " + pl.GetString() : "")))
-                .ToList();
+            return data.EnumerateArray().Select(j =>
+            {
+                var keep = 0;
+                if (j.TryGetProperty("prune-backups", out var pb))
+                {
+                    // can be an object {"keep-last":"3"} or a string "keep-last=3"
+                    if (pb.ValueKind == JsonValueKind.Object && pb.TryGetProperty("keep-last", out var kl))
+                        int.TryParse(kl.GetString(), out keep);
+                    else if (pb.ValueKind == JsonValueKind.String)
+                    {
+                        var s = pb.GetString() ?? "";
+                        var m = s.Split(',').FirstOrDefault(p => p.StartsWith("keep-last="));
+                        if (m != null) int.TryParse(m["keep-last=".Length..], out keep);
+                    }
+                }
+                return new BackupJob(
+                    j.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "",
+                    j.TryGetProperty("schedule", out var sc) ? sc.GetString() ?? "" : (j.TryGetProperty("starttime", out var st) ? st.GetString() ?? "" : ""),
+                    j.TryGetProperty("storage", out var stg) ? stg.GetString() ?? "" : "",
+                    !j.TryGetProperty("enabled", out var en) || en.GetInt32() == 1,
+                    j.TryGetProperty("all", out var all) && all.GetInt32() == 1,
+                    j.TryGetProperty("vmid", out var v) ? v.GetString() ?? "" : "",
+                    keep);
+            }).ToList();
         }
         catch (Exception ex) { log.LogWarning(ex, "backup jobs"); return []; }
     }
+
+    private static Dictionary<string, string> JobForm(string schedule, string storage, int keepLast, bool all, string vmid, bool enabled)
+    {
+        var f = new Dictionary<string, string>
+        {
+            ["schedule"] = schedule,
+            ["storage"] = storage,
+            ["mode"] = "snapshot",
+            ["compress"] = "zstd",
+            ["prune-backups"] = $"keep-last={Math.Max(1, keepLast)}",
+            ["enabled"] = enabled ? "1" : "0",
+        };
+        if (all) f["all"] = "1"; else f["vmid"] = vmid;
+        return f;
+    }
+
+    public Task<string?> CreateBackupJobAsync(string schedule, string storage, int keepLast, bool all, string vmid)
+    {
+        var req = Req(HttpMethod.Post, "/cluster/backup");
+        req.Content = new FormUrlEncodedContent(JobForm(schedule, storage, keepLast, all, vmid, true));
+        return SendErr(req);
+    }
+
+    public Task<string?> UpdateBackupJobAsync(string id, string schedule, string storage, int keepLast, bool all, string vmid, bool enabled)
+    {
+        var req = Req(HttpMethod.Put, $"/cluster/backup/{Uri.EscapeDataString(id)}");
+        var form = JobForm(schedule, storage, keepLast, all, vmid, enabled);
+        if (all) form["vmid"] = ""; // switching to all clears explicit vmids
+        req.Content = new FormUrlEncodedContent(form);
+        return SendErr(req);
+    }
+
+    public Task<string?> DeleteBackupJobAsync(string id) =>
+        SendErr(Req(HttpMethod.Delete, $"/cluster/backup/{Uri.EscapeDataString(id)}"));
 
     public Task<string?> SetBackupJobEnabledAsync(string id, bool enabled)
     {

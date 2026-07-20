@@ -174,12 +174,12 @@
 
     @if (Data.BackupJobs.Count > 0)
     {
-        <h2>Backup-Jobs</h2>
+        <h2>Backup-Jobs <a class="count" href="/admin/backups">verwalten →</a></h2>
         <div class="bindings">
             @foreach (var j in Data.BackupJobs)
             {
                 <div class="binding @(j.Enabled ? "" : "disabled")">
-                    <div class="domains">@(string.IsNullOrEmpty(j.Schedule) ? "(kein Zeitplan)" : j.Schedule) · @j.Selection</div>
+                    <div class="domains">@(string.IsNullOrEmpty(j.Schedule) ? "(kein Zeitplan)" : j.Schedule) · @j.Selection · behält @j.KeepLast</div>
                     <div class="target">→ @j.Storage</div>
                     <div class="flags">
                         <button class="btn xs" @onclick="() => ToggleJob(j)">@(j.Enabled ? "deaktivieren" : "aktivieren")</button>
