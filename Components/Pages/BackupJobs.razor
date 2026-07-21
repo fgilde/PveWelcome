@@ -82,6 +82,41 @@
         }
         <button class="btn sm go" @onclick="Create">Anlegen</button>
     </div>
+
+    <h2 style="margin-top:2rem">Vorhandene Backups</h2>
+    <p class="muted">Alle Archive pro Guest — mit Größe. Restore (destruktiv) und Löschen.</p>
+    @if (bkpMsg is not null)
+    {
+        <p class="muted">@bkpMsg</p>
+    }
+    @if (Data.AllBackups.Count == 0)
+    {
+        <p class="muted">@(Data.LastUpdated == default ? "Lade…" : "Keine Backups vorhanden.")</p>
+    }
+    else
+    {
+        @foreach (var grp in Data.AllBackups.GroupBy(b => b.VmId).OrderBy(g => g.Key))
+        {
+            <div class="settings-card">
+                <div class="settings-host">
+                    @GuestName(grp.Key) <span class="muted">#@grp.Key · @grp.Count() Backup(s) · @Format.Bytes(grp.Sum(b => b.Size)) gesamt</span>
+                </div>
+                <div class="snap-list">
+                    @foreach (var b in grp.OrderByDescending(b => b.Time))
+                    {
+                        <div class="snap-row">
+                            <span class="snap-name">@b.Time.LocalDateTime.ToString("dd.MM.yyyy HH:mm")</span>
+                            <span class="muted">@Format.Bytes(b.Size) · @b.Storage · @b.Type</span>
+                            <span class="snap-btns">
+                                <button class="btn xs danger" disabled="@busy" @onclick="() => RestoreBackup(b)">Restore</button>
+                                <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteBackup(b)">Löschen</button>
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
 </div>
 
 @code {
@@ -105,6 +140,35 @@
     private List<JobEdit> jobs = [];
     private JobEdit nw = new() { Schedule = "03:00", KeepLast = 1, All = true };
     private string? msg;
+    private string? bkpMsg;
+    private bool busy;
+
+    private string GuestName(int vmid) => Data.Guests.FirstOrDefault(g => g.VmId == vmid)?.Name ?? $"VM {vmid}";
+
+    private async Task RestoreBackup(BackupInfo b)
+    {
+        var g = Data.Guests.FirstOrDefault(x => x.VmId == b.VmId);
+        if (g is not null && g.IsRunning) { bkpMsg = $"{g.Name} läuft — zum Wiederherstellen erst stoppen."; return; }
+        var name = g?.Name ?? $"#{b.VmId}";
+        var warn = name == "core" ? "\n\nACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!" : "";
+        var typed = await JS.InvokeAsync<string>("prompt",
+            $"WARNUNG: {name} (#{b.VmId}) wird KOMPLETT mit dem Backup vom {b.Time.LocalDateTime:yyyy-MM-dd HH:mm} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{warn}\n\nZum Bestätigen den Namen exakt tippen: {name}");
+        if (typed != name) { bkpMsg = "Restore abgebrochen (Name nicht bestätigt)."; return; }
+        busy = true; StateHasChanged();
+        var err = await Data.RestoreFromAsync(b);
+        busy = false;
+        bkpMsg = err is null ? "Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten)." : $"Restore fehlgeschlagen: {err}";
+    }
+
+    private async Task DeleteBackup(BackupInfo b)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {GuestName(b.VmId)} (#{b.VmId}) vom {b.Time.LocalDateTime:dd.MM.yyyy HH:mm} ({Format.Bytes(b.Size)}) löschen? Unwiderruflich.")) return;
+        busy = true; StateHasChanged();
+        var err = await Data.DeleteBackupAsync(b);
+        await Data.RefreshAsync();
+        busy = false;
+        bkpMsg = err is null ? "Backup gelöscht." : $"Löschen fehlgeschlagen: {err}";
+    }
 
     protected override async Task OnInitializedAsync()
     {

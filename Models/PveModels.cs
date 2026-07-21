@@ -20,8 +20,14 @@ public record PveGuest(
     public string Kind => Type == "qemu" ? "VM" : "CT";
 }
 
-/// Latest backup of a guest.
-public record BackupInfo(int VmId, DateTimeOffset Time, long Size, string Volid = "");
+/// A backup of a guest (a single vzdump archive).
+public record BackupInfo(int VmId, DateTimeOffset Time, long Size, string Volid = "")
+{
+    /// Storage name is the part before ':' in the volid (e.g. "nas-backup:backup/...").
+    public string Storage => Volid.Contains(':') ? Volid.Split(':')[0] : "";
+    /// Guest type derived from the archive name (vzdump-qemu-… / vzdump-lxc-…).
+    public string Type => Volid.Contains("vzdump-qemu") ? "qemu" : "lxc";
+}
 
 /// One history sample from PVE rrddata (values normalized 0..1).
 public record RrdPoint(double Cpu, double Mem);

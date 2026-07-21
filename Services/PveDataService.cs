@@ -20,6 +20,8 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
     public int UpdatesAvailable { get; private set; }
     public IReadOnlyList<DiskInfo> Disks { get; private set; } = [];
     public IReadOnlyList<BackupJob> BackupJobs { get; private set; } = [];
+    /// every backup archive across all backup storages, newest first
+    public IReadOnlyList<BackupInfo> AllBackups { get; private set; } = [];
     public IReadOnlyList<UptimeMonitor> Monitors { get; private set; } = [];
     /// monitor id -> reachable
     public IReadOnlyDictionary<int, bool> MonitorUp { get; private set; } = new Dictionary<int, bool>();
@@ -59,10 +61,17 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
                 Storages = await pve.GetStoragesAsync(nodes[0]);
                 BackupStorages = Storages.Where(s => s.TakesBackups).Select(s => s.Name).ToList();
                 var merged = new Dictionary<int, BackupInfo>();
+                var all = new List<BackupInfo>();
                 foreach (var s in Storages.Where(s => s.TakesBackups))
-                    foreach (var (vmid, info) in await pve.GetBackupsAsync(nodes[0], s.Name))
-                        if (!merged.TryGetValue(vmid, out var cur) || info.Time > cur.Time) merged[vmid] = info;
+                {
+                    foreach (var b in await pve.GetBackupListAsync(nodes[0], s.Name))
+                    {
+                        all.Add(b);
+                        if (!merged.TryGetValue(b.VmId, out var cur) || b.Time > cur.Time) merged[b.VmId] = b;
+                    }
+                }
                 Backups = merged;
+                AllBackups = all.OrderByDescending(b => b.Time).ToList();
                 var rrd = await pve.GetNodeRrdAsync(nodes[0]);
                 NodeCpuHist = rrd.Select(p => p.Cpu).ToList();
                 NodeMemHist = rrd.Select(p => p.Mem).ToList();
@@ -159,6 +168,24 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
         using var scope = scopeFactory.CreateScope();
         var pve = scope.ServiceProvider.GetRequiredService<PveClient>();
         return await pve.RestoreAsync(g.Node, g.Type, g.VmId, b.Volid);
+    }
+
+    /// DESTRUCTIVE in-place restore from a SPECIFIC backup archive. Returns null on success, else error.
+    public async Task<string?> RestoreFromAsync(BackupInfo b)
+    {
+        if (Node is null || string.IsNullOrEmpty(b.Volid)) return "kein Backup";
+        using var scope = scopeFactory.CreateScope();
+        var pve = scope.ServiceProvider.GetRequiredService<PveClient>();
+        return await pve.RestoreAsync(Node, b.Type, b.VmId, b.Volid);
+    }
+
+    /// Delete a single backup archive. Returns null on success, else error.
+    public async Task<string?> DeleteBackupAsync(BackupInfo b)
+    {
+        if (Node is null || string.IsNullOrEmpty(b.Storage)) return "kein Storage";
+        using var scope = scopeFactory.CreateScope();
+        var pve = scope.ServiceProvider.GetRequiredService<PveClient>();
+        return await pve.DeleteBackupAsync(Node, b.Storage, b.Volid);
     }
 
     /// Real external reachability of each served domain (GET https://domain via Cloudflare).

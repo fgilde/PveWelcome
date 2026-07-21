@@ -106,6 +106,30 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
         return map;
     }
 
+    /// ALL backups (every archive, not just the latest) from a backup storage.
+    public async Task<List<BackupInfo>> GetBackupListAsync(string node, string storage)
+    {
+        var list = new List<BackupInfo>();
+        try
+        {
+            var data = await GetDataAsync($"/nodes/{node}/storage/{storage}/content?content=backup");
+            foreach (var b in data.EnumerateArray())
+            {
+                if (!b.TryGetProperty("vmid", out var v)) continue;
+                var ctime = b.TryGetProperty("ctime", out var ct) ? ct.GetInt64() : 0;
+                var size = b.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
+                var volid = b.TryGetProperty("volid", out var vo) ? vo.GetString() ?? "" : "";
+                list.Add(new BackupInfo((int)v.GetDouble(), DateTimeOffset.FromUnixTimeSeconds(ctime), size, volid));
+            }
+        }
+        catch (Exception ex) { log.LogWarning(ex, "backup list {Node}/{Storage}", node, storage); }
+        return list;
+    }
+
+    /// Delete a single backup archive by its volid.
+    public Task<string?> DeleteBackupAsync(string node, string storage, string volid) =>
+        SendErr(Req(HttpMethod.Delete, $"/nodes/{node}/storage/{storage}/content/{Uri.EscapeDataString(volid)}"));
+
     /// CPU/RAM history (last hour, normalized 0..1) from PVE's own rrd store — nothing stored by us.
     private async Task<List<RrdPoint>> RrdAsync(string path, string memUsedKey, string memTotalKey)
     {
