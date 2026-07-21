@@ -30,6 +30,10 @@ Proxmox/NPM APIs server-side — the browser never sees a token.
   (see `scripts/pve-install.sh` output / docs).
 - **Branding** — a per-domain landing page (name, tagline, accent color, link) from the DB.
 - **Everything configurable in the UI** — PVE/NPM access, backup target, notifications, monitors, users, 2FA, branding under `/admin`.
+- **Configurable AI integration to ask or change stuff directly in your Pve Environment
+
+<img width="1954" height="884" alt="image" src="https://github.com/user-attachments/assets/97926ba2-7a3a-4c8b-af7e-6da191f37a6e" />
+
 
 <img width="1943" height="1221" alt="image" src="https://github.com/user-attachments/assets/935b6ae6-76e2-4290-8a8b-88d4ef7b1ccb" />
 
