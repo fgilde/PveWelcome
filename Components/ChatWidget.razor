@@ -1,0 +1,127 @@
+@rendermode InteractiveServer
+@implements IDisposable
+@inject AiService Ai
+
+<AuthorizeView Roles="Admin">
+    @if (configured)
+    {
+        <button class="ai-fab" title="AI" @onclick="() => open = !open">@(open ? "✕" : "✨")</button>
+        <div class="ai-panel @(open ? "open" : "")">
+            <div class="ai-head">
+                <strong>AI</strong>
+                <span class="ai-head-actions">
+                    <button class="btn xs ghost" @onclick="NewChat">Neu</button>
+                    <button class="btn xs ghost" @onclick="OpenHistory">Verlauf</button>
+                    <button class="btn xs ghost" @onclick="() => open = false">✕</button>
+                </span>
+            </div>
+
+            @if (showHistory)
+            {
+                <div class="ai-body">
+                    @if (history.Count == 0)
+                    {
+                        <p class="muted">Kein Verlauf.</p>
+                    }
+                    else
+                    {
+                        @foreach (var r in history)
+                        {
+                            <button class="ai-hist" @onclick="() => LoadRun(r)">
+                                <span class="ai-hist-t">@r.At.ToLocalTime().ToString("dd.MM HH:mm") · @r.Provider</span>
+                                <span class="ai-hist-p">@(r.Prompt.Length > 80 ? r.Prompt[..80] + "…" : r.Prompt)</span>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="ai-body">
+                    @foreach (var m in msgs)
+                    {
+                        <div class="ai-msg @m.Role">@m.Text</div>
+                    }
+                    @if (streaming)
+                    {
+                        <div class="ai-msg assistant">@cur<span class="ai-cursor">▋</span></div>
+                    }
+                    @if (msgs.Count == 0 && !streaming)
+                    {
+                        <p class="muted">Frag die KI, etwas am System zu tun oder zu erklären.</p>
+                    }
+                </div>
+                <div class="ai-foot">
+                    <textarea rows="2" placeholder="Nachricht… (Enter = senden)" @bind="input" @bind:event="oninput"
+                              @onkeydown="OnKey" disabled="@streaming"></textarea>
+                    <button class="btn sm go" disabled="@(streaming || string.IsNullOrWhiteSpace(input))" @onclick="Send">@(streaming ? "…" : "➤")</button>
+                </div>
+            }
+        </div>
+    }
+</AuthorizeView>
+
+@code {
+    private bool configured;
+    private bool open;
+    private bool showHistory;
+    private bool streaming;
+    private string input = "";
+    private string cur = "";
+    private List<ChatMsg> msgs = [];
+    private List<AiRun> history = [];
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { configured = (await Ai.GetSettingsAsync()).Configured; } catch { configured = false; }
+    }
+
+    private void NewChat() { msgs = []; cur = ""; showHistory = false; }
+
+    private async Task OpenHistory() { history = await Ai.RecentAsync(20); showHistory = true; }
+
+    private void LoadRun(AiRun r)
+    {
+        msgs = [new ChatMsg("user", r.Prompt), new ChatMsg("assistant", r.Result)];
+        showHistory = false;
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey) await Send();
+    }
+
+    private async Task Send()
+    {
+        if (streaming || string.IsNullOrWhiteSpace(input)) return;
+        var text = input.Trim();
+        input = "";
+        msgs.Add(new ChatMsg("user", text));
+        cur = "";
+        streaming = true;
+        StateHasChanged();
+        cts = new CancellationTokenSource();
+        try
+        {
+            await foreach (var chunk in Ai.StreamAsync(msgs.ToList(), cts.Token))
+            {
+                cur += chunk;
+                await InvokeAsync(StateHasChanged);
+            }
+            msgs.Add(new ChatMsg("assistant", cur.Length == 0 ? "(keine Ausgabe)" : cur));
+        }
+        catch (Exception ex)
+        {
+            msgs.Add(new ChatMsg("assistant", $"⚠ {ex.Message}"));
+        }
+        finally
+        {
+            cur = "";
+            streaming = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose() { cts?.Cancel(); cts?.Dispose(); }
+}
