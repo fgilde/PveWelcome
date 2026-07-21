@@ -1,0 +1,125 @@
+@page "/admin/ai"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject AiService Ai
+
+<PageTitle>AI</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <h1>AI-Integration</h1>
+    <p class="muted">Eine KI am System arbeiten lassen. <strong>Hermes</strong> ist ein eigener Agent (SSH + Tools) — kann alles, was der SSH-User darf. <strong>Claude</strong> nutzt deinen eigenen API-Key (nur Text, keine System-Tools in dieser Version). Keys/Creds liegen nur hier, nicht im Vault.</p>
+
+    <h2>Anbieter</h2>
+    <div class="settings-card">
+        <div class="settings-grid">
+            <label>Provider
+                <select @bind="cfg.Provider">
+                    <option value="hermes">Hermes (eigener Agent, volle Power)</option>
+                    <option value="claude">Claude (API-Key, nur Text)</option>
+                </select>
+            </label>
+        </div>
+
+        @if (cfg.Provider == "hermes")
+        {
+            <div class="settings-grid">
+                <label>SSH Host<input @bind="cfg.HermesHost" placeholder="192.168.178.x (Hermes-CT)" /></label>
+                <label>Port<input type="number" @bind="cfg.HermesPort" /></label>
+                <label>SSH User<input @bind="cfg.HermesUser" placeholder="hermes" /></label>
+                <label class="chk">Auth = Private Key<input type="checkbox" @bind="cfg.HermesAuthIsKey" /></label>
+                <label>@(cfg.HermesAuthIsKey ? "Private Key (PEM)" : "Passwort")
+                    @if (cfg.HermesAuthIsKey)
+                    {
+                        <textarea rows="4" @bind="cfg.HermesAuth" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+                    }
+                    else
+                    {
+                        <input type="password" @bind="cfg.HermesAuth" />
+                    }
+                </label>
+                <label>Befehl<input @bind="cfg.HermesCommand" placeholder="hermes" /></label>
+                <label>Modell (optional)<input @bind="cfg.HermesModel" placeholder="glm-5.1:cloud" /></label>
+                <label class="chk">--yolo (ohne Rückfragen)<input type="checkbox" @bind="cfg.HermesYolo" /></label>
+            </div>
+            <p class="muted">⚠ Hermes handelt selbst über SSH — im „Full/yolo"-Modus ohne Rückfragen. Nur mit vertrautem Agent nutzen.</p>
+        }
+        else
+        {
+            <div class="settings-grid">
+                <label>Claude API-Key<input type="password" @bind="cfg.ClaudeApiKey" placeholder="sk-ant-..." /></label>
+                <label>Modell<input @bind="cfg.ClaudeModel" placeholder="claude-sonnet-5" /></label>
+            </div>
+        }
+        <button class="btn sm go" @onclick="Save">Speichern</button>
+        @if (cfgMsg is not null)
+        {
+            <span class="muted" style="margin-left:1rem">@cfgMsg</span>
+        }
+    </div>
+
+    <h2>Chat</h2>
+    <div class="settings-card">
+        <textarea rows="3" style="width:100%" @bind="prompt" placeholder="Was soll die KI am System tun / beantworten?"></textarea>
+        <div style="margin-top:.5rem">
+            <button class="btn sm go" disabled="@(busy || string.IsNullOrWhiteSpace(prompt))" @onclick="Send">@(busy ? "läuft…" : "Senden")</button>
+        </div>
+        @if (answer is not null)
+        {
+            <pre class="task-log" style="margin-top:.8rem; max-height:420px">@answer</pre>
+        }
+    </div>
+
+    <h2>Verlauf</h2>
+    @if (runs.Count == 0)
+    {
+        <p class="muted">Noch nichts.</p>
+    }
+    else
+    {
+        <div class="snap-list">
+            @foreach (var r in runs)
+            {
+                <div class="snap-row">
+                    <span class="snap-name">@r.At.ToLocalTime().ToString("dd.MM HH:mm")</span>
+                    <span class="muted" style="flex:1">@r.Provider · @(r.Prompt.Length > 60 ? r.Prompt[..60] + "…" : r.Prompt)</span>
+                    <span class="pill @(r.Ok ? "on" : "warn")">@(r.Ok ? "ok" : "Fehler")</span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private AiSettings cfg = new();
+    private string? cfgMsg;
+    private string prompt = "";
+    private string? answer;
+    private bool busy;
+    private List<AiRun> runs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        cfg = await Ai.GetSettingsAsync();
+        runs = await Ai.RecentAsync();
+    }
+
+    private async Task Save()
+    {
+        await Ai.SaveSettingsAsync(cfg);
+        cfg = await Ai.GetSettingsAsync();
+        cfgMsg = "Gespeichert.";
+    }
+
+    private async Task Send()
+    {
+        answer = null;
+        busy = true;
+        StateHasChanged();
+        var (_, output) = await Ai.SendAsync(prompt.Trim());
+        answer = output;
+        busy = false;
+        runs = await Ai.RecentAsync();
+    }
+}

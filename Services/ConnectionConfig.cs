@@ -33,6 +33,20 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
             "\"Name\" TEXT NOT NULL, \"Url\" TEXT NOT NULL, \"Enabled\" INTEGER NOT NULL DEFAULT 1);");
         try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Users\" ADD COLUMN \"TotpSecret\" TEXT NULL;"); }
         catch { /* column already exists */ }
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS \"AiSettings\" (" +
+            "\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_AiSettings\" PRIMARY KEY AUTOINCREMENT, " +
+            "\"Provider\" TEXT NOT NULL DEFAULT 'hermes', \"HermesHost\" TEXT NOT NULL DEFAULT '', " +
+            "\"HermesPort\" INTEGER NOT NULL DEFAULT 22, \"HermesUser\" TEXT NOT NULL DEFAULT 'hermes', " +
+            "\"HermesAuth\" TEXT NOT NULL DEFAULT '', \"HermesAuthIsKey\" INTEGER NOT NULL DEFAULT 0, " +
+            "\"HermesCommand\" TEXT NOT NULL DEFAULT 'hermes', \"HermesModel\" TEXT NOT NULL DEFAULT '', " +
+            "\"HermesYolo\" INTEGER NOT NULL DEFAULT 1, \"ClaudeApiKey\" TEXT NOT NULL DEFAULT '', " +
+            "\"ClaudeModel\" TEXT NOT NULL DEFAULT 'claude-sonnet-5');");
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS \"AiRuns\" (" +
+            "\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_AiRuns\" PRIMARY KEY AUTOINCREMENT, " +
+            "\"At\" TEXT NOT NULL, \"Provider\" TEXT NOT NULL, \"Prompt\" TEXT NOT NULL, " +
+            "\"Result\" TEXT NOT NULL, \"Ok\" INTEGER NOT NULL DEFAULT 0);");
 
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is null)

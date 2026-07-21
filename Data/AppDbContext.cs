@@ -9,6 +9,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BrandConfig> Brands => Set<BrandConfig>();
     public DbSet<ConnectionSettings> Connections => Set<ConnectionSettings>();
     public DbSet<UptimeMonitor> Monitors => Set<UptimeMonitor>();
+    public DbSet<AiSettings> AiSettings => Set<AiSettings>();
+    public DbSet<AiRun> AiRuns => Set<AiRun>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

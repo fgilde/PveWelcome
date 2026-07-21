@@ -28,6 +28,7 @@ builder.Services.AddDataProtection()
     .SetApplicationName("PveWelcome");
 builder.Services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<AiService>();
 builder.Services.AddScoped<MonitorService>();
 builder.Services.AddSingleton<LoginThrottle>();
 
