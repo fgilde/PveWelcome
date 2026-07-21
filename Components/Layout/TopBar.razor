@@ -2,9 +2,11 @@
 @inject NavigationManager Nav
 
 <header class="topbar">
-    <div class="lang" title="Sprache / Language">
-        <a href="/set-lang?c=de&r=@ReturnUrl" class="@(Loc.IsEn ? "" : "on")">DE</a>
-        <a href="/set-lang?c=en&r=@ReturnUrl" class="@(Loc.IsEn ? "on" : "")">EN</a>
+    <div class="tb-left">
+        <div class="lang" title="Sprache / Language">
+            <button type="button" class="@(Loc.IsEn ? "" : "on")" @onclick='() => SetLang("de")'>DE</button>
+            <button type="button" class="@(Loc.IsEn ? "on" : "")" @onclick='() => SetLang("en")'>EN</button>
+        </div>
     </div>
     <a class="brand" href="/dashboard">
         <span class="dot" style="background:@brand.Accent"></span>
@@ -34,6 +36,9 @@
     private Brand brand = new();
     private string username = "";
     private string ReturnUrl => Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri));
+
+    // forceLoad => full page navigation so the new culture cookie takes effect (no stale circuit).
+    private void SetLang(string c) => Nav.NavigateTo($"/set-lang?c={c}&r={ReturnUrl}", forceLoad: true);
 
     protected override async Task OnInitializedAsync()
     {
