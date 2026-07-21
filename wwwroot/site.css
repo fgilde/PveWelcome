@@ -309,3 +309,10 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 420px) {
   .health, .info-grid { grid-template-columns:1fr; }
 }
+
+/* app footer */
+.app-footer { display:flex; align-items:center; justify-content:center; gap:.7rem; flex-wrap:wrap;
+  padding:1.4rem 1rem 2rem; border-top:1px solid var(--line); color:var(--muted); font-size:.85rem; }
+.app-footer a { color:var(--muted); text-decoration:none; }
+.app-footer a:hover { color:var(--accent); }
+.app-footer .gh { display:inline-flex; }
