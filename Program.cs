@@ -89,11 +89,27 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 // Behind Cloudflare/NPM which terminate TLS; no https redirect at the app.
 
+// i18n: culture from cookie (de default, en optional).
+var cultures = new[] { "de", "en" };
+app.UseRequestLocalization(new Microsoft.AspNetCore.Builder.RequestLocalizationOptions()
+    .SetDefaultCulture("de").AddSupportedCultures(cultures).AddSupportedUICultures(cultures));
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+// Language switch: set the culture cookie + redirect back.
+app.MapGet("/set-lang", (string c, string? r, HttpContext ctx) =>
+{
+    var culture = c == "en" ? "en" : "de";
+    ctx.Response.Cookies.Append(
+        Microsoft.AspNetCore.Localization.CookieRequestCultureProvider.DefaultCookieName,
+        Microsoft.AspNetCore.Localization.CookieRequestCultureProvider.MakeCookieValue(new Microsoft.AspNetCore.Localization.RequestCulture(culture)),
+        new CookieOptions { Path = "/", Expires = DateTimeOffset.UtcNow.AddYears(1) });
+    return Results.Redirect(string.IsNullOrEmpty(r) ? "/" : r);
+});
 
 // --- Auth endpoints (form posts from the static-SSR login page) ---
 app.MapPost("/auth/login", async (HttpContext ctx, UserService users, LoginThrottle throttle,

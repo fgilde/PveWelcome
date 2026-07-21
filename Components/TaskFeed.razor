@@ -4,13 +4,13 @@
     @foreach (var t in Tasks)
     {
         <div class="task @(t.IsRunning ? "run" : t.Ok ? "ok" : "err") clickable" @onclick="() => Toggle(t)">
-            <span class="tstate">@(t.IsRunning ? "läuft…" : t.Ok ? "✓" : "✗")</span>
+            <span class="tstate">@(t.IsRunning ? Loc.T("läuft…") : t.Ok ? "✓" : "✗")</span>
             <span class="tt">@t.Label</span>
             <span class="ts muted">@t.Start.LocalDateTime.ToString("dd.MM HH:mm")</span>
         </div>
         @if (openUpid == t.Upid)
         {
-            <pre class="task-log">@(log ?? "lädt…")</pre>
+            <pre class="task-log">@(log ?? Loc.T("lädt…"))</pre>
         }
     }
 </div>

@@ -2,24 +2,28 @@
 @inject NavigationManager Nav
 
 <header class="topbar">
+    <div class="lang" title="Sprache / Language">
+        <a href="/set-lang?c=de&r=@ReturnUrl" class="@(Loc.IsEn ? "" : "on")">DE</a>
+        <a href="/set-lang?c=en&r=@ReturnUrl" class="@(Loc.IsEn ? "on" : "")">EN</a>
+    </div>
     <a class="brand" href="/dashboard">
         <span class="dot" style="background:@brand.Accent"></span>
         <strong>@brand.Name</strong>
         <span class="sub">console</span>
     </a>
     <nav class="links">
-        <a href="/dashboard">Dashboard</a>
+        <a href="/dashboard">@Loc.T("Dashboard")</a>
         <AuthorizeView Roles="Admin">
             <a href="/admin/npm">NPM</a>
-            <a href="/admin/backups">Backups</a>
+            <a href="/admin/backups">@Loc.T("Backups")</a>
             <a href="/admin/ai">AI</a>
-            <a href="/admin/settings">Settings</a>
-            <a href="/admin/users">Users</a>
+            <a href="/admin/settings">@Loc.T("Settings")</a>
+            <a href="/admin/users">@Loc.T("Users")</a>
         </AuthorizeView>
         <span class="who">@username</span>
         <form method="post" action="/auth/logout" class="logout-form">
             <AntiforgeryToken />
-            <button type="submit" class="logout">Logout</button>
+            <button type="submit" class="logout">@Loc.T("Logout")</button>
         </form>
     </nav>
 </header>
@@ -29,6 +33,7 @@
 
     private Brand brand = new();
     private string username = "";
+    private string ReturnUrl => Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri));
 
     protected override async Task OnInitializedAsync()
     {

@@ -278,3 +278,8 @@ a { color: inherit; text-decoration: none; }
 .ai-hist:hover { border-color:var(--accent,#8b5cf6); }
 .ai-hist-t { display:block; font-size:.72rem; opacity:.6; }
 .ai-hist-p { display:block; font-size:.85rem; }
+
+/* language switcher */
+.topbar .lang { display:inline-flex; gap:2px; margin-right:.9rem; border:1px solid var(--line,#2d2350); border-radius:999px; overflow:hidden; }
+.topbar .lang a { padding:.15rem .55rem; font-size:.72rem; font-weight:600; color:var(--muted,#b6aede); text-decoration:none; }
+.topbar .lang a.on { background:var(--accent,#8b5cf6); color:#fff; }

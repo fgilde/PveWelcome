@@ -6,13 +6,13 @@
 @inject PveClient Pve
 @inject IJSRuntime JS
 
-<PageTitle>Backup-Jobs</PageTitle>
+<PageTitle>@Loc.T("Backup-Jobs")</PageTitle>
 
 <TopBar />
 
 <div class="page-wrap">
-    <h1>Backup-Jobs</h1>
-    <p class="muted">Zeitplan, Ziel-Storage und <strong>Aufbewahrung</strong> (wie viele Backups pro Guest behalten werden). 1 spart am meisten Platz.</p>
+    <h1>@Loc.T("Backup-Jobs")</h1>
+    <p class="muted">@Loc.T("Zeitplan, Ziel-Storage und") <strong>@Loc.T("Aufbewahrung")</strong> @Loc.T("(wie viele Backups pro Guest behalten werden). 1 spart am meisten Platz.")</p>
     @if (msg is not null)
     {
         <p class="muted">@msg</p>
@@ -20,14 +20,14 @@
 
     @if (jobs.Count == 0)
     {
-        <p class="muted">@(Data.LastUpdated == default ? "Lade…" : "Keine Backup-Jobs.")</p>
+        <p class="muted">@(Data.LastUpdated == default ? Loc.T("Lade…") : Loc.T("Keine Backup-Jobs."))</p>
     }
     @foreach (var j in jobs)
     {
         <div class="settings-card">
             <div class="settings-grid">
-                <label>Zeit (HH:MM)<input @bind="j.Schedule" placeholder="03:00" /></label>
-                <label>Ziel-Storage
+                <label>@Loc.T("Zeit (HH:MM)")<input @bind="j.Schedule" placeholder="03:00" /></label>
+                <label>@Loc.T("Ziel-Storage")
                     <select @bind="j.Storage">
                         @foreach (var s in Data.BackupStorages)
                         {
@@ -35,9 +35,9 @@
                         }
                     </select>
                 </label>
-                <label>Behalten pro Guest<input type="number" min="1" @bind="j.KeepLast" /></label>
-                <label class="chk">Alle Guests<input type="checkbox" @bind="j.All" /></label>
-                <label class="chk">Aktiv<input type="checkbox" @bind="j.Enabled" /></label>
+                <label>@Loc.T("Behalten pro Guest")<input type="number" min="1" @bind="j.KeepLast" /></label>
+                <label class="chk">@Loc.T("Alle Guests")<input type="checkbox" @bind="j.All" /></label>
+                <label class="chk">@Loc.T("Aktiv")<input type="checkbox" @bind="j.Enabled" /></label>
             </div>
             @if (!j.All)
             {
@@ -49,26 +49,26 @@
                     }
                 </div>
             }
-            <button class="btn sm go" @onclick="() => Save(j)">Speichern</button>
-            <button class="btn sm danger" @onclick="() => Del(j)">Löschen</button>
+            <button class="btn sm go" @onclick="() => Save(j)">@Loc.T("Speichern")</button>
+            <button class="btn sm danger" @onclick="() => Del(j)">@Loc.T("Löschen")</button>
         </div>
     }
 
-    <h2>Neuer Job</h2>
+    <h2>@Loc.T("Neuer Job")</h2>
     <div class="settings-card">
         <div class="settings-grid">
-            <label>Zeit (HH:MM)<input @bind="nw.Schedule" placeholder="03:00" /></label>
-            <label>Ziel-Storage
+            <label>@Loc.T("Zeit (HH:MM)")<input @bind="nw.Schedule" placeholder="03:00" /></label>
+            <label>@Loc.T("Ziel-Storage")
                 <select @bind="nw.Storage">
-                    <option value="">(wählen)</option>
+                    <option value="">@Loc.T("(wählen)")</option>
                     @foreach (var s in Data.BackupStorages)
                     {
                         <option value="@s">@s</option>
                     }
                 </select>
             </label>
-            <label>Behalten pro Guest<input type="number" min="1" @bind="nw.KeepLast" /></label>
-            <label class="chk">Alle Guests<input type="checkbox" @bind="nw.All" /></label>
+            <label>@Loc.T("Behalten pro Guest")<input type="number" min="1" @bind="nw.KeepLast" /></label>
+            <label class="chk">@Loc.T("Alle Guests")<input type="checkbox" @bind="nw.All" /></label>
         </div>
         @if (!nw.All)
         {
@@ -80,18 +80,18 @@
                 }
             </div>
         }
-        <button class="btn sm go" @onclick="Create">Anlegen</button>
+        <button class="btn sm go" @onclick="Create">@Loc.T("Anlegen")</button>
     </div>
 
-    <h2 style="margin-top:2rem">Vorhandene Backups</h2>
-    <p class="muted">Alle Archive pro Guest — mit Größe. Restore (destruktiv) und Löschen.</p>
+    <h2 style="margin-top:2rem">@Loc.T("Vorhandene Backups")</h2>
+    <p class="muted">@Loc.T("Alle Archive pro Guest — mit Größe. Restore (destruktiv) und Löschen.")</p>
     @if (bkpMsg is not null)
     {
         <p class="muted">@bkpMsg</p>
     }
     @if (Data.AllBackups.Count == 0)
     {
-        <p class="muted">@(Data.LastUpdated == default ? "Lade…" : "Keine Backups vorhanden.")</p>
+        <p class="muted">@(Data.LastUpdated == default ? Loc.T("Lade…") : Loc.T("Keine Backups vorhanden."))</p>
     }
     else
     {
@@ -99,7 +99,7 @@
         {
             <div class="settings-card">
                 <div class="settings-host">
-                    @GuestName(grp.Key) <span class="muted">#@grp.Key · @grp.Count() Backup(s) · @Format.Bytes(grp.Sum(b => b.Size)) gesamt</span>
+                    @GuestName(grp.Key) <span class="muted">#@grp.Key · @grp.Count() Backup(s) · @Format.Bytes(grp.Sum(b => b.Size)) @Loc.T("gesamt")</span>
                 </div>
                 <div class="snap-list">
                     @foreach (var b in grp.OrderByDescending(b => b.Time))
@@ -108,8 +108,8 @@
                             <span class="snap-name">@b.Time.LocalDateTime.ToString("dd.MM.yyyy HH:mm")</span>
                             <span class="muted">@Format.Bytes(b.Size) · @b.Storage · @b.Type</span>
                             <span class="snap-btns">
-                                <button class="btn xs danger" disabled="@busy" @onclick="() => RestoreBackup(b)">Restore</button>
-                                <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteBackup(b)">Löschen</button>
+                                <button class="btn xs danger" disabled="@busy" @onclick="() => RestoreBackup(b)">@Loc.T("Restore")</button>
+                                <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteBackup(b)">@Loc.T("Löschen")</button>
                             </span>
                         </div>
                     }
@@ -153,11 +153,11 @@
         var warn = name == "core" ? "\n\nACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!" : "";
         var typed = await JS.InvokeAsync<string>("prompt",
             $"WARNUNG: {name} (#{b.VmId}) wird KOMPLETT mit dem Backup vom {b.Time.LocalDateTime:yyyy-MM-dd HH:mm} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{warn}\n\nZum Bestätigen den Namen exakt tippen: {name}");
-        if (typed != name) { bkpMsg = "Restore abgebrochen (Name nicht bestätigt)."; return; }
+        if (typed != name) { bkpMsg = Loc.T("Restore abgebrochen (Name nicht bestätigt)."); return; }
         busy = true; StateHasChanged();
         var err = await Data.RestoreFromAsync(b);
         busy = false;
-        bkpMsg = err is null ? "Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten)." : $"Restore fehlgeschlagen: {err}";
+        bkpMsg = err is null ? Loc.T("Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten).") : $"Restore fehlgeschlagen: {err}";
     }
 
     private async Task DeleteBackup(BackupInfo b)
@@ -167,7 +167,7 @@
         var err = await Data.DeleteBackupAsync(b);
         await Data.RefreshAsync();
         busy = false;
-        bkpMsg = err is null ? "Backup gelöscht." : $"Löschen fehlgeschlagen: {err}";
+        bkpMsg = err is null ? Loc.T("Backup gelöscht.") : $"Löschen fehlgeschlagen: {err}";
     }
 
     protected override async Task OnInitializedAsync()
@@ -190,18 +190,18 @@
 
     private async Task Save(JobEdit j)
     {
-        if (!j.All && j.Vmids.Count == 0) { msg = "Mindestens einen Guest wählen oder 'Alle Guests'."; return; }
+        if (!j.All && j.Vmids.Count == 0) { msg = Loc.T("Mindestens einen Guest wählen oder 'Alle Guests'."); return; }
         var err = await Pve.UpdateBackupJobAsync(j.Id, j.Schedule.Trim(), j.Storage, j.KeepLast, j.All, j.VmidCsv, j.Enabled);
-        msg = err is null ? "Gespeichert." : $"Fehler: {err}";
+        msg = err is null ? Loc.T("Gespeichert.") : $"Fehler: {err}";
         await Data.RefreshAsync();
     }
 
     private async Task Create()
     {
-        if (string.IsNullOrWhiteSpace(nw.Storage)) { msg = "Ziel-Storage wählen."; return; }
-        if (!nw.All && nw.Vmids.Count == 0) { msg = "Mindestens einen Guest wählen oder 'Alle Guests'."; return; }
+        if (string.IsNullOrWhiteSpace(nw.Storage)) { msg = Loc.T("Ziel-Storage wählen."); return; }
+        if (!nw.All && nw.Vmids.Count == 0) { msg = Loc.T("Mindestens einen Guest wählen oder 'Alle Guests'."); return; }
         var err = await Pve.CreateBackupJobAsync(nw.Schedule.Trim(), nw.Storage, nw.KeepLast, nw.All, nw.VmidCsv);
-        msg = err is null ? "Job angelegt." : $"Fehler: {err}";
+        msg = err is null ? Loc.T("Job angelegt.") : $"Fehler: {err}";
         nw = new() { Schedule = "03:00", KeepLast = 1, All = true, Storage = Data.BackupStorages.FirstOrDefault() ?? "" };
         await Data.RefreshAsync();
     }
@@ -210,7 +210,7 @@
     {
         if (!await JS.InvokeAsync<bool>("confirm", $"Backup-Job ({(j.All ? "alle Guests" : j.VmidCsv)} → {j.Storage}) löschen?")) return;
         var err = await Pve.DeleteBackupJobAsync(j.Id);
-        msg = err is null ? "Gelöscht." : $"Fehler: {err}";
+        msg = err is null ? Loc.T("Gelöscht.") : $"Fehler: {err}";
         await Data.RefreshAsync();
     }
 

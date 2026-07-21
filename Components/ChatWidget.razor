@@ -10,8 +10,8 @@
             <div class="ai-head">
                 <strong>AI</strong>
                 <span class="ai-head-actions">
-                    <button class="btn xs ghost" @onclick="NewChat">Neu</button>
-                    <button class="btn xs ghost" @onclick="OpenHistory">Verlauf</button>
+                    <button class="btn xs ghost" @onclick="NewChat">@Loc.T("Neu")</button>
+                    <button class="btn xs ghost" @onclick="OpenHistory">@Loc.T("Verlauf")</button>
                     <button class="btn xs ghost" @onclick="() => open = false">✕</button>
                 </span>
             </div>
@@ -21,7 +21,7 @@
                 <div class="ai-body">
                     @if (history.Count == 0)
                     {
-                        <p class="muted">Kein Verlauf.</p>
+                        <p class="muted">@Loc.T("Kein Verlauf.")</p>
                     }
                     else
                     {
@@ -48,11 +48,11 @@
                     }
                     @if (msgs.Count == 0 && !streaming)
                     {
-                        <p class="muted">Frag die KI, etwas am System zu tun oder zu erklären.</p>
+                        <p class="muted">@Loc.T("Frag die KI, etwas am System zu tun oder zu erklären.")</p>
                     }
                 </div>
                 <div class="ai-foot">
-                    <textarea rows="2" placeholder="Nachricht… (Enter = senden)" @bind="input" @bind:event="oninput"
+                    <textarea rows="2" placeholder="@Loc.T("Nachricht… (Enter = senden)")" @bind="input" @bind:event="oninput"
                               @onkeydown="OnKey" disabled="@streaming"></textarea>
                     <button class="btn sm go" disabled="@(streaming || string.IsNullOrWhiteSpace(input))" @onclick="Send">@(streaming ? "…" : "➤")</button>
                 </div>
@@ -109,7 +109,7 @@
                 cur += chunk;
                 await InvokeAsync(StateHasChanged);
             }
-            msgs.Add(new ChatMsg("assistant", cur.Length == 0 ? "(keine Ausgabe)" : cur));
+            msgs.Add(new ChatMsg("assistant", cur.Length == 0 ? Loc.T("(keine Ausgabe)") : cur));
         }
         catch (Exception ex)
         {

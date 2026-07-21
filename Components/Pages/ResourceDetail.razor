@@ -12,18 +12,18 @@
 <TopBar />
 
 <div class="page-wrap">
-    <a class="back" href="/dashboard">← Dashboard</a>
+    <a class="back" href="/dashboard">← @Loc.T("Dashboard")</a>
 
     @if (guest is null)
     {
         @if (Data.LastUpdated == default)
         {
-            <p class="muted">Lade…</p>
+            <p class="muted">@Loc.T("Lade…")</p>
         }
         else
         {
-            <h1>Nicht gefunden</h1>
-            <p class="muted">Keine Ressource mit #@VmId.</p>
+            <h1>@Loc.T("Nicht gefunden")</h1>
+            <p class="muted">@Loc.T("Keine Ressource mit") #@VmId.</p>
         }
     }
     else
@@ -38,19 +38,19 @@
             <div class="actions">
                 @if (guest.IsRunning)
                 {
-                    <button class="btn sm" disabled="@busy" @onclick='() => Act("reboot")'>Restart</button>
-                    <button class="btn sm danger" disabled="@busy" @onclick='() => Act("shutdown")'>Stop</button>
+                    <button class="btn sm" disabled="@busy" @onclick='() => Act("reboot")'>@Loc.T("Restart")</button>
+                    <button class="btn sm danger" disabled="@busy" @onclick='() => Act("shutdown")'>@Loc.T("Stop")</button>
                 }
                 else
                 {
-                    <button class="btn sm go" disabled="@busy" @onclick='() => Act("start")'>Start</button>
+                    <button class="btn sm go" disabled="@busy" @onclick='() => Act("start")'>@Loc.T("Start")</button>
                 }
-                <button class="btn sm" disabled="@busy" @onclick="BackupNow">Backup jetzt</button>
+                <button class="btn sm" disabled="@busy" @onclick="BackupNow">@Loc.T("Backup jetzt")</button>
                 @if (Data.BackupFor(guest.VmId) is not null)
                 {
                     <button class="btn sm danger" disabled="@(busy || guest.IsRunning)"
-                            title="@(guest.IsRunning ? "zum Wiederherstellen erst stoppen" : "aus Backup wiederherstellen (überschreibt!)")"
-                            @onclick="RestoreNow">Restore</button>
+                            title="@(guest.IsRunning ? Loc.T("zum Wiederherstellen erst stoppen") : Loc.T("aus Backup wiederherstellen (überschreibt!)"))"
+                            @onclick="RestoreNow">@Loc.T("Restore")</button>
                 }
             </div>
         </div>
@@ -60,21 +60,21 @@
         }
 
         <section class="info-grid">
-            <div><span class="label">Node</span><span class="val">@guest.Node</span></div>
-            <div><span class="label">Typ</span><span class="val">@guest.Type (@guest.Kind)</span></div>
+            <div><span class="label">@Loc.T("Node")</span><span class="val">@guest.Node</span></div>
+            <div><span class="label">@Loc.T("Typ")</span><span class="val">@guest.Type (@guest.Kind)</span></div>
             <div><span class="label">IP</span><span class="val">@(guest.Ip ?? "–")</span></div>
             <div><span class="label">CPU</span><span class="val">@Format.Pct(guest.CpuFraction)</span><Sparkline Values="CpuHist" /></div>
             <div><span class="label">RAM</span><span class="val">@Format.Bytes(guest.MemUsed) / @Format.Bytes(guest.MemMax)</span><Sparkline Values="MemHist" Color="#38bdf8" /></div>
             <div><span class="label">Disk</span><span class="val">@Format.Bytes(guest.DiskUsed) / @Format.Bytes(guest.DiskMax)</span></div>
-            <div><span class="label">Uptime</span><span class="val">@Format.Uptime(guest.Uptime)</span></div>
-            <div><span class="label">Bedient</span><span class="val">@served.Count Domain(s)</span></div>
-            <div><span class="label">Backup</span><span class="val">@BackupText()</span></div>
+            <div><span class="label">@Loc.T("Uptime")</span><span class="val">@Format.Uptime(guest.Uptime)</span></div>
+            <div><span class="label">@Loc.T("Bedient")</span><span class="val">@served.Count Domain(s)</span></div>
+            <div><span class="label">@Loc.T("Backup")</span><span class="val">@BackupText()</span></div>
         </section>
 
         var gtasks = Data.Tasks.Where(t => t.VmId == guest.VmId).Take(6).ToList();
         @if (gtasks.Count > 0)
         {
-            <h2>Aktivität</h2>
+            <h2>@Loc.T("Aktivität")</h2>
             <TaskFeed Tasks="gtasks" Node="Data.Node" />
         }
 
@@ -88,7 +88,7 @@
         }
         @if (snaps.Count == 0)
         {
-            <p class="muted">Keine Snapshots.</p>
+            <p class="muted">@Loc.T("Keine Snapshots.")</p>
         }
         else
         {
@@ -100,7 +100,7 @@
                         <span class="muted">@(s.Time?.LocalDateTime.ToString("dd.MM HH:mm") ?? "")@(string.IsNullOrEmpty(s.Description) ? "" : " · " + s.Description)</span>
                         <span class="snap-btns">
                             <button class="btn xs" disabled="@busy" @onclick="() => Rollback(s)">Rollback</button>
-                            <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteSnap(s)">Löschen</button>
+                            <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteSnap(s)">@Loc.T("Löschen")</button>
                         </span>
                     </div>
                 }
@@ -110,12 +110,12 @@
         <h2>Links</h2>
         <div class="links-list">
             <a class="link-card" href="@PveUiUrl" target="_blank" rel="noopener">
-                <strong>Proxmox öffnen ↗</strong>
-                <span class="muted">Verwaltung / Konsole im PVE-Webinterface</span>
+                <strong>@Loc.T("Proxmox öffnen") ↗</strong>
+                <span class="muted">@Loc.T("Verwaltung / Konsole im PVE-Webinterface")</span>
             </a>
             <a class="link-card" href="@ConsoleUrl" target="_blank" rel="noopener">
-                <strong>Konsole ↗</strong>
-                <span class="muted">noVNC-Konsole von @guest.Name direkt öffnen</span>
+                <strong>@Loc.T("Konsole") ↗</strong>
+                <span class="muted">@Loc.T("noVNC-Konsole von") @guest.Name @Loc.T("direkt öffnen")</span>
             </a>
 
             @if (served.Count > 0)
@@ -126,14 +126,14 @@
                     {
                         <a class="link-card" href="https://@d" target="_blank" rel="noopener">
                             <strong>@d ↗</strong>
-                            <span class="muted">bedient von dieser Ressource (Port @h.ForwardPort · @(h.Online ? "online" : "offline"))</span>
+                            <span class="muted">@Loc.T("bedient von dieser Ressource (Port") @h.ForwardPort · @(h.Online ? "online" : "offline"))</span>
                         </a>
                     }
                 }
             }
             else if (guest.Ip is not null)
             {
-                <div class="link-card muted-card">Keine NPM-Domain zeigt auf @guest.Ip.</div>
+                <div class="link-card muted-card">@Loc.T("Keine NPM-Domain zeigt auf") @guest.Ip.</div>
             }
         </div>
     }
@@ -156,28 +156,28 @@
     {
         if (guest is null) return;
         var target = Data.BackupTarget;
-        if (string.IsNullOrEmpty(target)) { bkpMsg = "Kein Backup-Ziel konfiguriert — in Settings wählen."; return; }
+        if (string.IsNullOrEmpty(target)) { bkpMsg = Loc.T("Kein Backup-Ziel konfiguriert — in Settings wählen."); return; }
         if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {guest.Name} auf '{target}' starten?")) return;
         var ok = await Data.TriggerBackupAsync(guest);
-        bkpMsg = ok ? $"Backup → '{target}' gestartet (erscheint in ein paar Minuten)." : "Backup-Start fehlgeschlagen.";
+        bkpMsg = ok ? $"Backup → '{target}' gestartet (erscheint in ein paar Minuten)." : Loc.T("Backup-Start fehlgeschlagen.");
     }
 
     private async Task RestoreNow()
     {
         if (guest is null) return;
-        if (guest.IsRunning) { bkpMsg = "Zum Wiederherstellen erst die Ressource stoppen."; return; }
+        if (guest.IsRunning) { bkpMsg = Loc.T("Zum Wiederherstellen erst die Ressource stoppen."); return; }
         var b = Data.BackupFor(guest.VmId);
-        if (b is null) { bkpMsg = "Kein Backup vorhanden."; return; }
+        if (b is null) { bkpMsg = Loc.T("Kein Backup vorhanden."); return; }
         var warn = guest.Name == "core" ? "\n\nACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!" : "";
         var typed = await JS.InvokeAsync<string>("prompt",
             $"WARNUNG: {guest.Name} (#{guest.VmId}) wird KOMPLETT mit dem Backup vom {b.Time.LocalDateTime:yyyy-MM-dd HH:mm} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{warn}\n\nZum Bestätigen den Namen exakt tippen: {guest.Name}");
-        if (typed != guest.Name) { bkpMsg = "Restore abgebrochen (Name nicht bestätigt)."; return; }
+        if (typed != guest.Name) { bkpMsg = Loc.T("Restore abgebrochen (Name nicht bestätigt)."); return; }
         busy = true;
         StateHasChanged();
         var err = await Data.RestoreAsync(guest);
         busy = false;
         bkpMsg = err is null
-            ? "Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten)."
+            ? Loc.T("Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten).")
             : $"Restore fehlgeschlagen: {err}";
     }
 
@@ -209,7 +209,7 @@
     private async Task CreateSnap()
     {
         if (guest is null) return;
-        var name = await JS.InvokeAsync<string>("prompt", "Snapshot-Name (Buchstabe zuerst, dann Buchstaben/Ziffern/_):", $"snap{DateTime.Now:MMddHHmm}");
+        var name = await JS.InvokeAsync<string>("prompt", Loc.T("Snapshot-Name (Buchstabe zuerst, dann Buchstaben/Ziffern/_):"), $"snap{DateTime.Now:MMddHHmm}");
         if (string.IsNullOrWhiteSpace(name)) return;
         busy = true; StateHasChanged();
         var err = await Pve.CreateSnapshotAsync(guest.Node, guest.Type, guest.VmId, name.Trim(), null);
@@ -243,7 +243,7 @@
     private string BackupText()
     {
         var b = Data.BackupFor(VmId);
-        return b is null ? "– (keins)" : $"{b.Time.LocalDateTime:yyyy-MM-dd HH:mm} · {Format.Bytes(b.Size)}";
+        return b is null ? Loc.T("– (keins)") : $"{b.Time.LocalDateTime:yyyy-MM-dd HH:mm} · {Format.Bytes(b.Size)}";
     }
 
     private void OnChanged() => InvokeAsync(() => { Resolve(); StateHasChanged(); });

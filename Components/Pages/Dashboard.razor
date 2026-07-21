@@ -12,11 +12,11 @@
 
 <div class="page-wrap">
     <div class="page-head">
-        <h1>Dashboard</h1>
+        <h1>@Loc.T("Dashboard")</h1>
         <div class="head-right">
             @if (Data.LastUpdated != default)
             {
-                <span class="muted stamp">@(Data.Refreshing ? "aktualisiert…" : $"vor {Ago()}")</span>
+                <span class="muted stamp">@(Data.Refreshing ? Loc.T("aktualisiert…") : $"vor {Ago()}")</span>
             }
             <button class="btn btn-ghost sm" @onclick="Refresh" disabled="@Data.Refreshing">↻ Refresh</button>
         </div>
@@ -48,20 +48,20 @@
             @if (Data.UpdatesAvailable > 0)
             {
                 <div class="metric"><span class="label">Updates</span>
-                    <span class="val"><span class="pill warn">@Data.UpdatesAvailable verfügbar</span></span>
-                    <span class="sub muted">apt am Node</span></div>
+                    <span class="val"><span class="pill warn">@Data.UpdatesAvailable @Loc.T("verfügbar")</span></span>
+                    <span class="sub muted">@Loc.T("apt am Node")</span></div>
             }
             <div class="metric">
-                <span class="label">RAM zugew.</span>
+                <span class="label">@Loc.T("RAM zugew.")</span>
                 <span class="val">@Format.Bytes(AllocatedRam()) / @Format.Bytes(h.MemMax)</span>
-                <span class="sub muted">@Data.Guests.Count(g => g.IsRunning)/@Data.Guests.Count Guests laufen</span>
+                <span class="sub muted">@Data.Guests.Count(g => g.IsRunning)/@Data.Guests.Count @Loc.T("Guests laufen")</span>
             </div>
         </section>
     }
 
     @if (Data.Storages.Count > 0)
     {
-        <h2>Storage</h2>
+        <h2>@Loc.T("Storage")</h2>
         <section class="health storage">
             @foreach (var s in Data.Storages)
             {
@@ -76,7 +76,7 @@
     }
 
     <div class="res-head">
-        <h2>Ressourcen</h2>
+        <h2>@Loc.T("Ressourcen")</h2>
         @if (bkpMsg is not null)
         {
             <span class="muted bkp-msg">@bkpMsg</span>
@@ -84,7 +84,7 @@
     </div>
     @if (Data.Guests.Count == 0)
     {
-        <p class="muted">@(Data.LastUpdated == default ? "Lade…" : "Keine Ressourcen.")</p>
+        <p class="muted">@(Data.LastUpdated == default ? Loc.T("Lade…") : Loc.T("Keine Ressourcen."))</p>
     }
     else
     {
@@ -119,19 +119,19 @@
                     }
                     @{ var bk = Data.BackupFor(g.VmId); }
                     <div class="bkp @(bk is null ? "none" : "")">
-                        @(bk is null ? "kein Backup" : $"Backup {bk.Time.LocalDateTime:dd.MM HH:mm}")
+                        @(bk is null ? Loc.T("kein Backup") : $"Backup {bk.Time.LocalDateTime:dd.MM HH:mm}")
                     </div>
                     <div class="actions">
                         @if (g.IsRunning)
                         {
-                            <button class="btn xs" disabled="@IsBusy(g)" @onclick='() => Act(g, "reboot")'>Restart</button>
-                            <button class="btn xs danger" disabled="@IsBusy(g)" @onclick='() => Act(g, "shutdown")'>Stop</button>
+                            <button class="btn xs" disabled="@IsBusy(g)" @onclick='() => Act(g, "reboot")'>@Loc.T("Restart")</button>
+                            <button class="btn xs danger" disabled="@IsBusy(g)" @onclick='() => Act(g, "shutdown")'>@Loc.T("Stop")</button>
                         }
                         else
                         {
-                            <button class="btn xs go" disabled="@IsBusy(g)" @onclick='() => Act(g, "start")'>Start</button>
+                            <button class="btn xs go" disabled="@IsBusy(g)" @onclick='() => Act(g, "start")'>@Loc.T("Start")</button>
                         }
-                        <button class="btn xs" disabled="@IsBusy(g)" @onclick="() => BackupNow(g)">Backup</button>
+                        <button class="btn xs" disabled="@IsBusy(g)" @onclick="() => BackupNow(g)">@Loc.T("Backup")</button>
                         <a class="btn xs ghost" href="/resource/@g.VmId">Details →</a>
                     </div>
                 </div>
@@ -141,7 +141,7 @@
 
     @if (Data.Disks.Count > 0)
     {
-        <h2>Platten (SMART)</h2>
+        <h2>@Loc.T("Platten (SMART)")</h2>
         <section class="health storage">
             @foreach (var d in Data.Disks)
             {
@@ -156,7 +156,7 @@
 
     @if (Data.Monitors.Count > 0)
     {
-        <h2>Monitore</h2>
+        <h2>@Loc.T("Monitore")</h2>
         <div class="bindings">
             @foreach (var m in Data.Monitors)
             {
@@ -165,7 +165,7 @@
                     <div class="domains"><a href="@m.Url" target="_blank" rel="noopener">@m.Name ↗</a></div>
                     <div class="target">@m.Url</div>
                     <div class="flags">
-                        <span class="pill @(!m.Enabled ? "off" : mup ? "on" : "warn")">@(!m.Enabled ? "aus" : mup ? "online" : "nicht erreichbar")</span>
+                        <span class="pill @(!m.Enabled ? "off" : mup ? "on" : "warn")">@(!m.Enabled ? Loc.T("aus") : mup ? "online" : Loc.T("nicht erreichbar"))</span>
                     </div>
                 </div>
             }
@@ -174,16 +174,16 @@
 
     @if (Data.BackupJobs.Count > 0)
     {
-        <h2>Backup-Jobs <a class="count" href="/admin/backups">verwalten →</a></h2>
+        <h2>@Loc.T("Backup-Jobs") <a class="count" href="/admin/backups">@Loc.T("verwalten") →</a></h2>
         <div class="bindings">
             @foreach (var j in Data.BackupJobs)
             {
                 <div class="binding @(j.Enabled ? "" : "disabled")">
-                    <div class="domains">@(string.IsNullOrEmpty(j.Schedule) ? "(kein Zeitplan)" : j.Schedule) · @j.Selection · behält @j.KeepLast</div>
+                    <div class="domains">@(string.IsNullOrEmpty(j.Schedule) ? Loc.T("(kein Zeitplan)") : j.Schedule) · @j.Selection · @Loc.T("behält") @j.KeepLast</div>
                     <div class="target">→ @j.Storage</div>
                     <div class="flags">
-                        <button class="btn xs" @onclick="() => ToggleJob(j)">@(j.Enabled ? "deaktivieren" : "aktivieren")</button>
-                        <span class="pill @(j.Enabled ? "on" : "off")">@(j.Enabled ? "aktiv" : "aus")</span>
+                        <button class="btn xs" @onclick="() => ToggleJob(j)">@(j.Enabled ? Loc.T("deaktivieren") : Loc.T("aktivieren"))</button>
+                        <span class="pill @(j.Enabled ? "on" : "off")">@(j.Enabled ? Loc.T("aktiv") : Loc.T("aus"))</span>
                     </div>
                 </div>
             }
@@ -192,11 +192,11 @@
 
     @if (Data.Tasks.Count > 0)
     {
-        <h2>Aktivität</h2>
+        <h2>@Loc.T("Aktivität")</h2>
         <TaskFeed Tasks="Data.Tasks.Take(10).ToList()" Node="Data.Node" />
     }
 
-    <h2>NPM Bindings <span class="count @(DomainsUp() == DomainsTotal() ? "ok" : "warn")">@DomainsUp()/@DomainsTotal() extern online</span></h2>
+    <h2>NPM Bindings <span class="count @(DomainsUp() == DomainsTotal() ? "ok" : "warn")">@DomainsUp()/@DomainsTotal() @Loc.T("extern online")</span></h2>
     <div class="bindings">
         @foreach (var host in Data.Hosts.OrderBy(h => h.DomainNames.FirstOrDefault()))
         {
@@ -216,7 +216,7 @@
                     }
                     else
                     {
-                        <span class="pill @(up ? "on" : "warn")">@(up ? "online" : "nicht erreichbar")</span>
+                        <span class="pill @(up ? "on" : "warn")">@(up ? "online" : Loc.T("nicht erreichbar"))</span>
                     }
                 </div>
             </div>
@@ -231,7 +231,7 @@
     private async Task BackupNow(PveGuest g)
     {
         var target = Data.BackupTarget;
-        if (string.IsNullOrEmpty(target)) { bkpMsg = "Kein Backup-Ziel konfiguriert — in Settings wählen."; return; }
+        if (string.IsNullOrEmpty(target)) { bkpMsg = Loc.T("Kein Backup-Ziel konfiguriert — in Settings wählen."); return; }
         if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {g.Name} auf '{target}' starten?")) return;
         var ok = await Data.TriggerBackupAsync(g);
         bkpMsg = ok

@@ -3,12 +3,12 @@
 @rendermode InteractiveServer
 @inject UserService UserSvc
 
-<PageTitle>Users</PageTitle>
+<PageTitle>@Loc.T("Users")</PageTitle>
 
 <TopBar />
 
 <div class="page-wrap">
-    <h1>Benutzer</h1>
+    <h1>@Loc.T("Benutzer")</h1>
 
     <div class="users">
         @foreach (var u in users)
@@ -17,18 +17,18 @@
                 <span class="uname">@u.Username</span>
                 <span class="pill role">@u.Role</span>
                 <span class="muted">seit @u.CreatedAt.ToString("yyyy-MM-dd")</span>
-                <input class="pw-inline" type="password" placeholder="neues Passwort" @bind="pwInputs[u.Id]" />
-                <button class="btn xs" @onclick="() => SetPw(u.Id)">Passwort setzen</button>
+                <input class="pw-inline" type="password" placeholder="@Loc.T("neues Passwort")" @bind="pwInputs[u.Id]" />
+                <button class="btn xs" @onclick="() => SetPw(u.Id)">@Loc.T("Passwort setzen")</button>
                 @if (string.IsNullOrEmpty(u.TotpSecret))
                 {
-                    <button class="btn xs" @onclick="() => StartEnroll(u.Id)">2FA einrichten</button>
+                    <button class="btn xs" @onclick="() => StartEnroll(u.Id)">@Loc.T("2FA einrichten")</button>
                 }
                 else
                 {
-                    <span class="pill on">2FA aktiv</span>
-                    <button class="btn xs danger" @onclick="() => DisableTotp(u.Id)">2FA aus</button>
+                    <span class="pill on">@Loc.T("2FA aktiv")</span>
+                    <button class="btn xs danger" @onclick="() => DisableTotp(u.Id)">@Loc.T("2FA aus")</button>
                 }
-                <button class="btn xs danger" disabled="@(users.Count <= 1)" @onclick="() => Delete(u.Id)">Löschen</button>
+                <button class="btn xs danger" disabled="@(users.Count <= 1)" @onclick="() => Delete(u.Id)">@Loc.T("Löschen")</button>
             </div>
         }
     </div>
@@ -36,25 +36,25 @@
     @if (enrollId is not null)
     {
         <div class="settings-card">
-            <h3>2FA einrichten für @EnrollName</h3>
-            <p class="muted">Secret (oder die URI) in eine Authenticator-App eingeben, dann den aktuellen 6-stelligen Code zum Bestätigen.</p>
+            <h3>@Loc.T("2FA einrichten für") @EnrollName</h3>
+            <p class="muted">@Loc.T("Secret (oder die URI) in eine Authenticator-App eingeben, dann den aktuellen 6-stelligen Code zum Bestätigen.")</p>
             <p><strong>Secret:</strong> <code>@enrollSecret</code></p>
             <p class="muted" style="word-break:break-all"><code>@Totp.OtpAuthUri(enrollSecret, EnrollName)</code></p>
             <input placeholder="123456" inputmode="numeric" @bind="enrollCode" />
-            <button class="btn sm go" @onclick="ConfirmEnroll">Aktivieren</button>
-            <button class="btn sm" @onclick="CancelEnroll">Abbrechen</button>
+            <button class="btn sm go" @onclick="ConfirmEnroll">@Loc.T("Aktivieren")</button>
+            <button class="btn sm" @onclick="CancelEnroll">@Loc.T("Abbrechen")</button>
         </div>
     }
 
-    <h2>Neuen Benutzer anlegen</h2>
+    <h2>@Loc.T("Neuen Benutzer anlegen")</h2>
     <div class="add-user">
-        <input placeholder="Benutzername" @bind="newName" />
-        <input placeholder="Passwort" type="password" @bind="newPass" />
+        <input placeholder="@Loc.T("Benutzername")" @bind="newName" />
+        <input placeholder="@Loc.T("Passwort")" type="password" @bind="newPass" />
         <select @bind="newRole">
             <option value="Admin">Admin</option>
             <option value="Viewer">Viewer</option>
         </select>
-        <button class="btn sm go" @onclick="Create">Anlegen</button>
+        <button class="btn sm go" @onclick="Create">@Loc.T("Anlegen")</button>
     </div>
     @if (msg is not null)
     {
@@ -80,9 +80,9 @@
     private async Task ConfirmEnroll()
     {
         if (enrollId is null) return;
-        if (!Totp.Verify(enrollSecret, enrollCode)) { msg = "Code stimmt nicht — nochmal prüfen (Uhrzeit synchron?)."; return; }
+        if (!Totp.Verify(enrollSecret, enrollCode)) { msg = Loc.T("Code stimmt nicht — nochmal prüfen (Uhrzeit synchron?)."); return; }
         await UserSvc.SetTotpAsync(enrollId.Value, enrollSecret);
-        msg = "2FA aktiviert.";
+        msg = Loc.T("2FA aktiviert.");
         CancelEnroll();
         await Reload();
     }
@@ -90,7 +90,7 @@
     private async Task DisableTotp(int id)
     {
         await UserSvc.SetTotpAsync(id, null);
-        msg = "2FA deaktiviert.";
+        msg = Loc.T("2FA deaktiviert.");
         await Reload();
     }
 
@@ -106,9 +106,9 @@
     {
         msg = null;
         var pw = pwInputs.GetValueOrDefault(id, "");
-        if (string.IsNullOrWhiteSpace(pw)) { msg = "Passwort darf nicht leer sein."; return; }
+        if (string.IsNullOrWhiteSpace(pw)) { msg = Loc.T("Passwort darf nicht leer sein."); return; }
         var ok = await UserSvc.SetPasswordAsync(id, pw);
-        msg = ok ? "Passwort geändert." : "Fehler beim Ändern.";
+        msg = ok ? Loc.T("Passwort geändert.") : Loc.T("Fehler beim Ändern.");
         pwInputs[id] = "";
     }
 
@@ -117,7 +117,7 @@
         msg = null;
         if (string.IsNullOrWhiteSpace(newName) || string.IsNullOrWhiteSpace(newPass))
         {
-            msg = "Name und Passwort nötig.";
+            msg = Loc.T("Name und Passwort nötig.");
             return;
         }
         var ok = await UserSvc.CreateAsync(newName, newPass, newRole);

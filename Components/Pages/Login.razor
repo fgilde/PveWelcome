@@ -2,15 +2,15 @@
 @inject BrandResolver Brands
 @inject IHttpContextAccessor Http
 
-<PageTitle>Login · @brand.Name</PageTitle>
+<PageTitle>@Loc.T("Login") · @brand.Name</PageTitle>
 
 <div class="auth-wrap" style="--accent:@brand.Accent">
     <div class="auth-card">
         <a class="auth-brand" href="/">
             <span class="dot" style="background:@brand.Accent"></span> @brand.Name
         </a>
-        <h1>Anmelden</h1>
-        <p class="muted">Zugang zur internen Konsole.</p>
+        <h1>@Loc.T("Anmelden")</h1>
+        <p class="muted">@Loc.T("Zugang zur internen Konsole.")</p>
 
         @if (Error is not null)
         {
@@ -20,19 +20,19 @@
         <form method="post" action="/auth/login" class="auth-form">
             <AntiforgeryToken />
             <input type="hidden" name="returnUrl" value="@ReturnUrl" />
-            <label>Benutzer
+            <label>@Loc.T("Benutzer")
                 <input name="username" autocomplete="username" required autofocus />
             </label>
-            <label>Passwort
+            <label>@Loc.T("Passwort")
                 <input name="password" type="password" autocomplete="current-password" required />
             </label>
-            <label>2FA-Code <span class="muted">(nur falls aktiviert)</span>
+            <label>2FA-Code <span class="muted">@Loc.T("(nur falls aktiviert)")</span>
                 <input name="totp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" placeholder="123456" />
             </label>
-            <button type="submit" class="btn btn-primary block">Einloggen</button>
+            <button type="submit" class="btn btn-primary block">@Loc.T("Einloggen")</button>
         </form>
 
-        <a class="back" href="/">← zurück</a>
+        <a class="back" href="/">← @Loc.T("zurück")</a>
     </div>
 </div>
 
@@ -44,9 +44,9 @@
 
     private string ErrorText => Error switch
     {
-        "2fa" => "2FA-Code fehlt oder ist falsch.",
-        "locked" => "Zu viele Fehlversuche — kurz gesperrt. In ein paar Minuten erneut versuchen.",
-        _ => "Falscher Benutzername oder Passwort."
+        "2fa" => Loc.T("2FA-Code fehlt oder ist falsch."),
+        "locked" => Loc.T("Zu viele Fehlversuche — kurz gesperrt. In ein paar Minuten erneut versuchen."),
+        _ => Loc.T("Falscher Benutzername oder Passwort.")
     };
 
     protected override void OnInitialized()

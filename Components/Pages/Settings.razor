@@ -6,25 +6,25 @@
 @inject PveDataService Data
 @inject MonitorService Monitors
 
-<PageTitle>Einstellungen</PageTitle>
+<PageTitle>@Loc.T("Einstellungen")</PageTitle>
 
 <TopBar />
 
 <div class="page-wrap">
-    <h1>Einstellungen</h1>
+    <h1>@Loc.T("Einstellungen")</h1>
 
-    <h2>Verbindungen (PVE &amp; NPM)</h2>
-    <p class="muted">Wohin das Tool zugreift. So können auch andere es auf ihre eigene Proxmox/NPM-Instanz zeigen.</p>
+    <h2>@Loc.T("Verbindungen") (PVE &amp; NPM)</h2>
+    <p class="muted">@Loc.T("Wohin das Tool zugreift. So können auch andere es auf ihre eigene Proxmox/NPM-Instanz zeigen.")</p>
     <div class="settings-card">
         <div class="settings-grid">
             <label>PVE API-URL<input @bind="conn.PveBaseUrl" placeholder="https://host:8006/api2/json" /></label>
             <label>PVE API-Token<input type="password" @bind="conn.PveApiToken" placeholder="user@realm!id=secret" /></label>
             <label>NPM URL<input @bind="conn.NpmBaseUrl" placeholder="http://host:81" /></label>
-            <label>NPM Benutzer<input @bind="conn.NpmUser" /></label>
-            <label>NPM Passwort<input type="password" @bind="conn.NpmPassword" /></label>
-            <label>Backup-Ziel (Storage)
+            <label>@Loc.T("NPM Benutzer")<input @bind="conn.NpmUser" /></label>
+            <label>@Loc.T("NPM Passwort")<input type="password" @bind="conn.NpmPassword" /></label>
+            <label>@Loc.T("Backup-Ziel (Storage)")
                 <select @bind="conn.BackupStorage">
-                    <option value="">(erstes verfügbares)</option>
+                    <option value="">@Loc.T("(erstes verfügbares)")</option>
                     @foreach (var s in Data.BackupStorages)
                     {
                         <option value="@s">@s</option>
@@ -33,58 +33,58 @@
             </label>
             <label>Alert-Webhook (optional)<input @bind="conn.NotifyWebhook" placeholder="https://... (POST {&quot;text&quot;:...})" /></label>
             <label>Telegram Bot-Token (optional)<input type="password" @bind="conn.TelegramToken" placeholder="123456:ABC..." /></label>
-            <label>Telegram Chat-ID (optional)<input @bind="conn.TelegramChatId" placeholder="z.B. 12345678" /></label>
+            <label>Telegram Chat-ID (optional)<input @bind="conn.TelegramChatId" placeholder="@Loc.T("z.B. 12345678")" /></label>
         </div>
-        <p class="muted" style="margin:.25rem 0 0">Bei neuen Alerts (Pool voll, Guest down, Backup fehlt, Updates) wird — falls gesetzt — an Webhook und/oder Telegram gepusht.</p>
-        <button class="btn sm go" @onclick="SaveConn">Speichern &amp; neu laden</button>
+        <p class="muted" style="margin:.25rem 0 0">@Loc.T("Bei neuen Alerts (Pool voll, Guest down, Backup fehlt, Updates) wird — falls gesetzt — an Webhook und/oder Telegram gepusht.")</p>
+        <button class="btn sm go" @onclick="SaveConn">@Loc.T("Speichern & neu laden")</button>
         @if (connMsg is not null)
         {
             <span class="muted" style="margin-left:1rem">@connMsg</span>
         }
     </div>
 
-    <h2>Monitore (eigene HTTP-Checks)</h2>
-    <p class="muted">Beliebige URLs überwachen (nicht nur NPM-Domains). Down → Alert + Telegram/Webhook.</p>
+    <h2>@Loc.T("Monitore (eigene HTTP-Checks)")</h2>
+    <p class="muted">@Loc.T("Beliebige URLs überwachen (nicht nur NPM-Domains). Down → Alert + Telegram/Webhook.")</p>
     <div class="settings-card">
         @foreach (var m in monitors)
         {
             <div class="user-row">
                 <span class="uname">@m.Name</span>
                 <span class="muted" style="flex:1">@m.Url</span>
-                <span class="pill @(m.Enabled ? "on" : "off")">@(m.Enabled ? "aktiv" : "aus")</span>
-                <button class="btn xs" @onclick="() => ToggleMon(m.Id)">@(m.Enabled ? "aus" : "an")</button>
-                <button class="btn xs danger" @onclick="() => DeleteMon(m.Id)">Löschen</button>
+                <span class="pill @(m.Enabled ? "on" : "off")">@(m.Enabled ? Loc.T("aktiv") : Loc.T("aus"))</span>
+                <button class="btn xs" @onclick="() => ToggleMon(m.Id)">@(m.Enabled ? Loc.T("aus") : Loc.T("an"))</button>
+                <button class="btn xs danger" @onclick="() => DeleteMon(m.Id)">@Loc.T("Löschen")</button>
             </div>
         }
         <div class="add-user">
-            <input placeholder="Name" @bind="monName" />
+            <input placeholder="@Loc.T("Name")" @bind="monName" />
             <input placeholder="https://…" @bind="monUrl" />
-            <button class="btn sm go" @onclick="AddMon">Hinzufügen</button>
+            <button class="btn sm go" @onclick="AddMon">@Loc.T("Hinzufügen")</button>
         </div>
     </div>
 
-    <h2>Welcome-Seiten</h2>
-    <p class="muted">Pro Domain: Name, Tagline, Akzentfarbe und der externe Link. Host <code>default</code> greift, wenn keine Domain passt.</p>
+    <h2>@Loc.T("Welcome-Seiten")</h2>
+    <p class="muted">@Loc.T("Pro Domain: Name, Tagline, Akzentfarbe und der externe Link. Host") <code>default</code> @Loc.T("greift, wenn keine Domain passt.")</p>
 
     @foreach (var b in brands)
     {
         <div class="settings-card">
             <div class="settings-host"><span class="dot" style="background:@b.Accent"></span> @b.Host</div>
             <div class="settings-grid">
-                <label>Name<input @bind="b.Name" /></label>
+                <label>@Loc.T("Name")<input @bind="b.Name" /></label>
                 <label>Tagline<input @bind="b.Tagline" /></label>
-                <label>Akzent<input type="color" @bind="b.Accent" /></label>
-                <label>Projekt-Link<input @bind="b.ProjectsUrl" /></label>
+                <label>@Loc.T("Akzent")<input type="color" @bind="b.Accent" /></label>
+                <label>@Loc.T("Projekt-Link")<input @bind="b.ProjectsUrl" /></label>
             </div>
-            <button class="btn sm go" @onclick="() => Save(b)">Speichern</button>
+            <button class="btn sm go" @onclick="() => Save(b)">@Loc.T("Speichern")</button>
         </div>
     }
 
-    <h2>Neue Domain</h2>
+    <h2>@Loc.T("Neue Domain")</h2>
     <div class="add-brand">
-        <input placeholder="host (z.B. foo.de)" @bind="newHost" />
-        <input placeholder="Name" @bind="newName" />
-        <button class="btn sm" @onclick="Add">Hinzufügen</button>
+        <input placeholder="@Loc.T("host (z.B. foo.de)")" @bind="newHost" />
+        <input placeholder="@Loc.T("Name")" @bind="newName" />
+        <button class="btn sm" @onclick="Add">@Loc.T("Hinzufügen")</button>
     </div>
 
     @if (msg is not null)
@@ -126,7 +126,7 @@
     {
         await Conn.SaveAsync(conn);
         await Data.RefreshAsync();
-        connMsg = "Gespeichert. Daten werden neu geladen.";
+        connMsg = Loc.T("Gespeichert. Daten werden neu geladen.");
     }
 
     private async Task Save(BrandConfig b)
@@ -137,10 +137,10 @@
 
     private async Task Add()
     {
-        if (string.IsNullOrWhiteSpace(newHost)) { msg = "Host nötig."; return; }
+        if (string.IsNullOrWhiteSpace(newHost)) { msg = Loc.T("Host nötig."); return; }
         await Brands.AddAsync(new BrandConfig { Host = newHost.Trim().ToLowerInvariant(), Name = string.IsNullOrWhiteSpace(newName) ? newHost : newName });
         newHost = ""; newName = "";
         brands = await Brands.GetAllAsync();
-        msg = "Domain hinzugefügt.";
+        msg = Loc.T("Domain hinzugefügt.");
     }
 }

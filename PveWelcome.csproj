@@ -14,4 +14,8 @@
     <PackageReference Include="SSH.NET" Version="2024.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="Resources\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

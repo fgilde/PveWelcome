@@ -10,7 +10,7 @@
 
 <div class="page-wrap">
     <div class="page-head">
-        <h1>NPM Proxy-Hosts</h1>
+        <h1>@Loc.T("NPM Proxy-Hosts")</h1>
         <button class="btn btn-ghost sm" @onclick="Load" disabled="@busy">↻ Refresh</button>
     </div>
 
@@ -27,30 +27,30 @@
                 <div class="target">→ @h.ForwardScheme://@h.ForwardHost:@h.ForwardPort</div>
                 <div class="flags npm-actions">
                     <span class="pill @(h.Enabled ? (h.Online ? "on" : "warn") : "off")">@(h.Enabled ? (h.Online ? "online" : "offline") : "disabled")</span>
-                    <button class="btn xs" @onclick="() => Toggle(h)">@(h.Enabled ? "Deaktivieren" : "Aktivieren")</button>
-                    <button class="btn xs" @onclick="() => StartEdit(h)">Bearbeiten</button>
-                    <button class="btn xs danger" @onclick="() => Delete(h)">Löschen</button>
+                    <button class="btn xs" @onclick="() => Toggle(h)">@(h.Enabled ? Loc.T("Deaktivieren") : Loc.T("Aktivieren"))</button>
+                    <button class="btn xs" @onclick="() => StartEdit(h)">@Loc.T("Bearbeiten")</button>
+                    <button class="btn xs danger" @onclick="() => Delete(h)">@Loc.T("Löschen")</button>
                 </div>
             </div>
         }
     </div>
 
-    <h2>@(editId is null ? "Neuer Proxy-Host" : $"Host #{editId} bearbeiten")</h2>
+    <h2>@(editId is null ? Loc.T("Neuer Proxy-Host") : $"Host #{editId} bearbeiten")</h2>
     <div class="npm-form">
-        <label>Domains (komma-getrennt)<input @bind="fDomains" placeholder="app.nksoft.de, www.app.nksoft.de" /></label>
+        <label>@Loc.T("Domains (komma-getrennt)")<input @bind="fDomains" placeholder="app.nksoft.de, www.app.nksoft.de" /></label>
         <div class="row">
-            <label>Schema
+            <label>@Loc.T("Schema")
                 <select @bind="fScheme"><option value="http">http</option><option value="https">https</option></select>
             </label>
-            <label>Ziel-Host<input @bind="fHost" placeholder="192.168.178.x" /></label>
+            <label>@Loc.T("Ziel-Host")<input @bind="fHost" placeholder="192.168.178.x" /></label>
             <label>Port<input type="number" @bind="fPort" /></label>
             <label class="cb">Websockets<input type="checkbox" @bind="fWs" /></label>
         </div>
         <div class="row">
-            <button class="btn sm go" @onclick="Save" disabled="@busy">@(editId is null ? "Anlegen" : "Speichern")</button>
+            <button class="btn sm go" @onclick="Save" disabled="@busy">@(editId is null ? Loc.T("Anlegen") : Loc.T("Speichern"))</button>
             @if (editId is not null)
             {
-                <button class="btn sm ghost" @onclick="ResetForm">Abbrechen</button>
+                <button class="btn sm ghost" @onclick="ResetForm">@Loc.T("Abbrechen")</button>
             }
         </div>
     </div>
@@ -81,12 +81,12 @@
     private async Task Save()
     {
         var domains = Domains();
-        if (domains.Length == 0 || string.IsNullOrWhiteSpace(fHost)) { msg = "Domains und Ziel-Host nötig."; return; }
+        if (domains.Length == 0 || string.IsNullOrWhiteSpace(fHost)) { msg = Loc.T("Domains und Ziel-Host nötig."); return; }
         busy = true;
         bool ok = editId is null
             ? await Npm.CreateHostAsync(domains, fScheme, fHost.Trim(), fPort, fWs)
             : await Npm.UpdateHostAsync(editId.Value, domains, fScheme, fHost.Trim(), fPort, fWs);
-        msg = ok ? "Gespeichert." : "Fehler (NPM-Login/Recht?).";
+        msg = ok ? Loc.T("Gespeichert.") : Loc.T("Fehler (NPM-Login/Recht?).");
         busy = false;
         ResetForm();
         await Load();

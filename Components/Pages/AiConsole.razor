@@ -8,16 +8,16 @@
 <TopBar />
 
 <div class="page-wrap">
-    <h1>AI-Integration</h1>
-    <p class="muted">Eine KI am System arbeiten lassen. <strong>Hermes</strong> ist ein eigener Agent (SSH + Tools) — kann alles, was der SSH-User darf. <strong>Claude</strong> nutzt deinen eigenen API-Key (nur Text, keine System-Tools in dieser Version). Keys/Creds liegen nur hier, nicht im Vault.</p>
+    <h1>@Loc.T("AI-Integration")</h1>
+    <p class="muted">@Loc.T("Eine KI am System arbeiten lassen.") <strong>Hermes</strong> @Loc.T("ist ein eigener Agent (SSH + Tools) — kann alles, was der SSH-User darf.") <strong>Claude</strong> @Loc.T("nutzt deinen eigenen API-Key (nur Text, keine System-Tools in dieser Version). Keys/Creds liegen nur hier, nicht im Vault.")</p>
 
-    <h2>Anbieter</h2>
+    <h2>@Loc.T("Anbieter")</h2>
     <div class="settings-card">
         <div class="settings-grid">
             <label>Provider
                 <select @bind="cfg.Provider">
-                    <option value="hermes">Hermes (eigener Agent, volle Power)</option>
-                    <option value="claude">Claude (API-Key, nur Text)</option>
+                    <option value="hermes">@Loc.T("Hermes (eigener Agent, volle Power)")</option>
+                    <option value="claude">@Loc.T("Claude (API-Key, nur Text)")</option>
                 </select>
             </label>
         </div>
@@ -29,7 +29,7 @@
                 <label>Port<input type="number" @bind="cfg.HermesPort" /></label>
                 <label>SSH User<input @bind="cfg.HermesUser" placeholder="hermes" /></label>
                 <label class="chk">Auth = Private Key<input type="checkbox" @bind="cfg.HermesAuthIsKey" /></label>
-                <label>@(cfg.HermesAuthIsKey ? "Private Key (PEM)" : "Passwort")
+                <label>@(cfg.HermesAuthIsKey ? "Private Key (PEM)" : Loc.T("Passwort"))
                     @if (cfg.HermesAuthIsKey)
                     {
                         <textarea rows="4" @bind="cfg.HermesAuth" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
@@ -39,17 +39,17 @@
                         <input type="password" @bind="cfg.HermesAuth" />
                     }
                 </label>
-                <label>Befehl<input @bind="cfg.HermesCommand" placeholder="hermes" /></label>
-                <label>Modell (optional)<input @bind="cfg.HermesModel" placeholder="glm-5.1:cloud" /></label>
-                <label class="chk">--yolo (ohne Rückfragen)<input type="checkbox" @bind="cfg.HermesYolo" /></label>
+                <label>@Loc.T("Befehl")<input @bind="cfg.HermesCommand" placeholder="hermes" /></label>
+                <label>@Loc.T("Modell (optional)")<input @bind="cfg.HermesModel" placeholder="glm-5.1:cloud" /></label>
+                <label class="chk">@Loc.T("--yolo (ohne Rückfragen)")<input type="checkbox" @bind="cfg.HermesYolo" /></label>
             </div>
-            <p class="muted">⚠ Hermes handelt selbst über SSH — im „Full/yolo"-Modus ohne Rückfragen. Nur mit vertrautem Agent nutzen.</p>
+            <p class="muted">⚠ @Loc.T("Hermes handelt selbst über SSH — im „Full/yolo\"-Modus ohne Rückfragen. Nur mit vertrautem Agent nutzen.")</p>
         }
         else
         {
             <div class="settings-grid">
                 <label>Claude API-Key<input type="password" @bind="cfg.ClaudeApiKey" placeholder="sk-ant-..." /></label>
-                <label>Modell<input @bind="cfg.ClaudeModel" placeholder="claude-sonnet-5" /></label>
+                <label>@Loc.T("Modell")<input @bind="cfg.ClaudeModel" placeholder="claude-sonnet-5" /></label>
             </div>
         }
         <button class="btn sm go" @onclick="Save">Speichern</button>
@@ -61,9 +61,9 @@
 
     <h2>Chat</h2>
     <div class="settings-card">
-        <textarea rows="3" style="width:100%" @bind="prompt" placeholder="Was soll die KI am System tun / beantworten?"></textarea>
+        <textarea rows="3" style="width:100%" @bind="prompt" placeholder="@Loc.T("Was soll die KI am System tun / beantworten?")"></textarea>
         <div style="margin-top:.5rem">
-            <button class="btn sm go" disabled="@(busy || string.IsNullOrWhiteSpace(prompt))" @onclick="Send">@(busy ? "läuft…" : "Senden")</button>
+            <button class="btn sm go" disabled="@(busy || string.IsNullOrWhiteSpace(prompt))" @onclick="Send">@(busy ? Loc.T("läuft…") : Loc.T("Senden"))</button>
         </div>
         @if (answer is not null)
         {
@@ -71,10 +71,10 @@
         }
     </div>
 
-    <h2>Verlauf</h2>
+    <h2>@Loc.T("Verlauf")</h2>
     @if (runs.Count == 0)
     {
-        <p class="muted">Noch nichts.</p>
+        <p class="muted">@Loc.T("Noch nichts.")</p>
     }
     else
     {
@@ -84,7 +84,7 @@
                 <div class="snap-row">
                     <span class="snap-name">@r.At.ToLocalTime().ToString("dd.MM HH:mm")</span>
                     <span class="muted" style="flex:1">@r.Provider · @(r.Prompt.Length > 60 ? r.Prompt[..60] + "…" : r.Prompt)</span>
-                    <span class="pill @(r.Ok ? "on" : "warn")">@(r.Ok ? "ok" : "Fehler")</span>
+                    <span class="pill @(r.Ok ? "on" : "warn")">@(r.Ok ? "ok" : Loc.T("Fehler"))</span>
                 </div>
             }
         </div>
@@ -109,7 +109,7 @@
     {
         await Ai.SaveSettingsAsync(cfg);
         cfg = await Ai.GetSettingsAsync();
-        cfgMsg = "Gespeichert.";
+        cfgMsg = Loc.T("Gespeichert.");
     }
 
     private async Task Send()
