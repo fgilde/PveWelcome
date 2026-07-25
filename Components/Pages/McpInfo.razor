@@ -1,0 +1,112 @@
+@page "/admin/mcp"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject ConnectionConfig Conn
+@inject AiService Ai
+@inject NavigationManager Nav
+
+<PageTitle>MCP</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <h1>MCP-Server</h1>
+    <p class="muted">
+        @Loc.T("PveWelcome stellt seine Funktionen als MCP-Server bereit — eine KI kann darüber Guests anzeigen, steuern, Backups machen, Scripts ausführen u. v. m. Trage die URL bei deinem MCP-Client ein, oder verbinde sie mit einem Klick an die interne AI.")
+    </p>
+
+    <section class="settings-card">
+        <label>MCP-URL
+            <input @bind="url" placeholder="http://192.168.178.100:8091/mcp" />
+        </label>
+        <p class="muted small">@Loc.T("Diese URL muss von deinem MCP-Client / der internen AI aus erreichbar sein (intern meist IP:Port, extern die Domain).")</p>
+
+        <label>@Loc.T("Zugriffstoken")
+            <div class="token-row">
+                <input readonly value="@(showToken ? Token : new string('•', 24))" />
+                <button class="btn xs" @onclick="() => showToken = !showToken">@(showToken ? Loc.T("verbergen") : Loc.T("zeigen"))</button>
+                <button class="btn xs danger" @onclick="Regenerate">@Loc.T("neu generieren")</button>
+            </div>
+        </label>
+        <p class="muted small">🔒 @Loc.T("Der /mcp-Endpunkt ist ohne diesen Token gesperrt (401). Neu generieren macht alte Clients ungültig — danach neu anbinden.")</p>
+
+        <div class="actions">
+            <button class="btn sm" @onclick="Save">@Loc.T("URL speichern")</button>
+            <button class="btn sm go" @onclick="RegisterHermes">@Loc.T("An interne AI (Hermes) anbinden")</button>
+        </div>
+        @if (!string.IsNullOrEmpty(status))
+        {
+            <p class="muted" style="margin-top:.6rem">@status</p>
+        }
+    </section>
+
+    <h2>@Loc.T("Werkzeuge")</h2>
+    <div class="tool-list">
+        @foreach (var (name, desc) in Tools)
+        {
+            <div class="tool"><code>@name</code><span>@desc</span></div>
+        }
+    </div>
+
+    <h2>@Loc.T("Einrichtung (generischer MCP-Client)")</h2>
+    <p class="muted">@Loc.T("Streamable-HTTP-Transport. Beispiel für einen Client, der Remote-MCP über HTTP unterstützt:")</p>
+    <pre class="code-block">{
+  "mcpServers": {
+    "pvewelcome": { "url": "@UrlWithKey" }
+  }
+}</pre>
+    <p class="muted small">🔒 @Loc.T("Die URL enthält den geheimen Token als ?key= — nicht öffentlich teilen. Clients mit Header-Support können stattdessen 'Authorization: Bearer <token>' senden.")</p>
+</div>
+
+@code {
+    private string url = "";
+    private string status = "";
+    private bool showToken;
+    private string Token => Conn.Current.McpToken;
+    private string UrlWithKey => $"{EffectiveUrl}?key={Token}";
+
+    private static readonly (string, string)[] Tools =
+    {
+        ("list_guests", "Alle VMs/Container mit Status, IP, Auslastung."),
+        ("node_health", "Node-Health: CPU, RAM, Uptime, Load, Updates, Storages."),
+        ("guest_action", "Guest start/stop/reboot/shutdown."),
+        ("backup_guest", "vzdump-Backup eines Guests auf den konfigurierten Speicher."),
+        ("list_backups", "Alle Backup-Archive, neueste zuerst."),
+        ("list_domains", "NPM-Reverse-Proxy: Domains ↔ internes Ziel."),
+        ("list_scripts", "Custom-Scripts eines Guests mit letztem Ergebnis."),
+        ("run_script", "Ein Script per Id ausführen (PVE-Agent/SSH) und Ausgabe liefern."),
+    };
+
+    private string EffectiveUrl => string.IsNullOrWhiteSpace(url) ? DefaultUrl() : url.Trim();
+
+    private string DefaultUrl()
+    {
+        var b = new Uri(Nav.BaseUri);
+        return $"{b.Scheme}://{b.Host}{(b.IsDefaultPort ? "" : ":" + b.Port)}/mcp";
+    }
+
+    protected override void OnInitialized()
+    {
+        url = string.IsNullOrWhiteSpace(Conn.Current.McpUrl) ? DefaultUrl() : Conn.Current.McpUrl;
+    }
+
+    private async Task Save()
+    {
+        await Conn.SetMcpUrlAsync(url);
+        status = Loc.T("Gespeichert.");
+    }
+
+    private async Task RegisterHermes()
+    {
+        await Conn.SetMcpUrlAsync(url);
+        status = Loc.T("Verbinde…");
+        status = await Ai.RegisterMcpAsync(UrlWithKey);
+    }
+
+    private async Task Regenerate()
+    {
+        await Conn.RegenerateMcpTokenAsync();
+        showToken = true;
+        status = Loc.T("Neuer Token erzeugt — bitte Clients / interne AI neu anbinden.");
+    }
+}

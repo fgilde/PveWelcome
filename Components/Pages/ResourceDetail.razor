@@ -1,0 +1,572 @@
+@page "/resource/{VmId:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@implements IDisposable
+@inject PveDataService Data
+@inject PveClient Pve
+@inject IJSRuntime JS
+@inject ConnectionConfig Conn
+@inject ScriptService Scripts
+
+<PageTitle>@(guest?.Name ?? "Resource")</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <a class="back" href="/dashboard">← @Loc.T("Dashboard")</a>
+
+    @if (guest is null)
+    {
+        @if (Data.LastUpdated == default)
+        {
+            <p class="muted">@Loc.T("Lade…")</p>
+        }
+        else
+        {
+            <h1>@Loc.T("Nicht gefunden")</h1>
+            <p class="muted">@Loc.T("Keine Ressource mit") #@VmId.</p>
+        }
+    }
+    else
+    {
+        var served = Data.HostsFor(guest);
+        <div class="detail-head">
+            <div>
+                <span class="kind big">@guest.Kind</span>
+                <h1>@guest.Name <span class="vmid">#@guest.VmId</span></h1>
+                <span class="pill @(guest.IsRunning ? "on" : "off")">@guest.Status</span>
+            </div>
+            <div class="actions">
+                @if (guest.IsRunning)
+                {
+                    <button class="btn sm" disabled="@busy" @onclick='() => Act("reboot")'>@Loc.T("Restart")</button>
+                    <button class="btn sm danger" disabled="@busy" @onclick='() => Act("shutdown")'>@Loc.T("Stop")</button>
+                }
+                else
+                {
+                    <button class="btn sm go" disabled="@busy" @onclick='() => Act("start")'>@Loc.T("Start")</button>
+                }
+                <button class="btn sm" disabled="@busy" @onclick="BackupNow">@Loc.T("Backup jetzt")</button>
+                @if (Data.BackupFor(guest.VmId) is not null)
+                {
+                    <button class="btn sm danger" disabled="@(busy || guest.IsRunning)"
+                            title="@(guest.IsRunning ? Loc.T("zum Wiederherstellen erst stoppen") : Loc.T("aus Backup wiederherstellen (überschreibt!)"))"
+                            @onclick="RestoreNow">@Loc.T("Restore")</button>
+                }
+            </div>
+        </div>
+        @if (bkpMsg is not null)
+        {
+            <p class="muted">@bkpMsg</p>
+        }
+
+        <section class="info-grid">
+            <div><span class="label">@Loc.T("Node")</span><span class="val">@guest.Node</span></div>
+            <div><span class="label">@Loc.T("Typ")</span><span class="val">@guest.Type (@guest.Kind)</span></div>
+            <div><span class="label">IP</span><span class="val">@(guest.Ip ?? "–")</span></div>
+            <div><span class="label">CPU</span><span class="val">@Format.Pct(guest.CpuFraction)</span><Sparkline Values="CpuHist" /></div>
+            <div><span class="label">RAM</span><span class="val">@Format.Bytes(guest.MemUsed) / @Format.Bytes(guest.MemMax)</span><Sparkline Values="MemHist" Color="#38bdf8" /></div>
+            <div><span class="label">Disk</span><span class="val">@Format.Bytes(guest.DiskUsed) / @Format.Bytes(guest.DiskMax)</span></div>
+            <div><span class="label">@Loc.T("Uptime")</span><span class="val">@Format.Uptime(guest.Uptime)</span></div>
+            <div><span class="label">@Loc.T("Backup")</span><span class="val">@BackupText()</span></div>
+        </section>
+
+        var domains = served.Where(h => h.Enabled).SelectMany(h => h.DomainNames).Distinct().ToList();
+        @if (domains.Count > 0)
+        {
+            <section class="domains">
+                <span class="label">@Loc.T("Domains")</span>
+                <div class="domain-list">
+                    @foreach (var d in domains)
+                    {
+                        <a class="domain-chip" href="@($"https://{d}")" target="_blank" rel="noopener">🔗 @d</a>
+                    }
+                </div>
+            </section>
+        }
+
+        var gtasks = Data.Tasks.Where(t => t.VmId == guest.VmId).Take(6).ToList();
+        @if (gtasks.Count > 0)
+        {
+            <h2>@Loc.T("Aktivität")</h2>
+            <TaskFeed Tasks="gtasks" Node="Data.Node" />
+        }
+
+        <div class="res-head">
+            <h2>Snapshots</h2>
+            <button class="btn sm" disabled="@busy" @onclick="CreateSnap">＋ Snapshot</button>
+        </div>
+        @if (snapMsg is not null)
+        {
+            <p class="muted">@snapMsg</p>
+        }
+        @if (snaps.Count == 0)
+        {
+            <p class="muted">@Loc.T("Keine Snapshots.")</p>
+        }
+        else
+        {
+            <div class="snap-list">
+                @foreach (var s in snaps)
+                {
+                    <div class="snap-row">
+                        <span class="snap-name">@s.Name</span>
+                        <span class="muted">@(s.Time?.LocalDateTime.ToString("dd.MM HH:mm") ?? "")@(string.IsNullOrEmpty(s.Description) ? "" : " · " + s.Description)</span>
+                        <span class="snap-btns">
+                            <button class="btn xs" disabled="@busy" @onclick="() => Rollback(s)">Rollback</button>
+                            <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteSnap(s)">@Loc.T("Löschen")</button>
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="res-head">
+            <h2>Scripts</h2>
+            <button class="btn sm" disabled="@running" @onclick="NewScript">＋ Script</button>
+        </div>
+        @if (scriptMsg is not null)
+        {
+            <p class="muted">@scriptMsg</p>
+        }
+        @if (scripts.Count == 0 && editScript is null)
+        {
+            <p class="muted">Keine Scripts. Lege eins an (z.B. „update-app", „restart", „logs anzeigen").</p>
+        }
+        @if (scripts.Count > 0)
+        {
+            <div class="snap-list">
+                @foreach (var sc in scripts)
+                {
+                    <div class="snap-row">
+                        <span class="snap-name">@sc.Name</span>
+                        <span class="muted">@(sc.LastRunAt is null ? "" : $"zuletzt {sc.LastRunAt.Value.ToLocalTime():dd.MM HH:mm}")</span>
+                        @if (sc.LastExit is not null)
+                        {
+                            <span class="pill @(sc.LastExit == 0 ? "on" : "warn")">@(sc.LastExit == 0 ? "✓" : $"✗ {sc.LastExit}")</span>
+                        }
+                        <span class="snap-btns">
+                            <button class="btn xs go" disabled="@running" @onclick="() => RunScript(sc)">▶ Run</button>
+                            <button class="btn xs" disabled="@running" @onclick="() => EditScript(sc)">@Loc.T("Bearbeiten")</button>
+                            <button class="btn xs danger" disabled="@running" @onclick="() => DelScript(sc)">@Loc.T("Löschen")</button>
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (editScript is not null)
+        {
+            <div class="settings-card">
+                <div class="settings-grid">
+                    <label>Name<input @bind="editScript.Name" placeholder="update-app" /></label>
+                    <label>@Loc.T("Ausführung")
+                        <select @bind="editScript.ExecMode">
+                            <option value="pve">PVE-Agent (VM, kein SSH)</option>
+                            <option value="ssh">SSH (Live-Output)</option>
+                        </select>
+                    </label>
+                </div>
+                @if (editScript.ExecMode == "pve")
+                {
+                    <p class="muted small">@Loc.T("Läuft im Gast über den PVE-Token (QEMU Guest-Agent) — kein SSH nötig. Nur QEMU-VMs; für LXC/ohne Agent den SSH-Modus wählen.")</p>
+                }
+                else
+                {
+                    <div class="settings-grid">
+                        <label>SSH Host<input @bind="editScript.SshHost" placeholder="@(guest.Ip ?? "192.168.x.x")" /></label>
+                        <label>Port<input type="number" @bind="editScript.SshPort" /></label>
+                        <label>SSH User<input @bind="editScript.SshUser" /></label>
+                        <label class="chk">Auth = Private Key<input type="checkbox" @bind="editScript.SshAuthIsKey" /></label>
+                        <label>@(editScript.SshAuthIsKey ? "Private Key (PEM)" : Loc.T("Passwort"))
+                            @if (editScript.SshAuthIsKey)
+                            {
+                                <textarea rows="3" @bind="editScript.SshAuth" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+                            }
+                            else
+                            {
+                                <input type="password" @bind="editScript.SshAuth" />
+                            }
+                        </label>
+                    </div>
+                }
+                <div class="script-toolbar">
+                    <strong>Script (bash)</strong>
+                    <span class="spacer"></span>
+                    <InputFile OnChange="OnUpload" id="scriptupload" class="hidden-file" />
+                    <label for="scriptupload" class="btn xs">⬆ Datei hochladen</label>
+                    @if (editScript.ExecMode == "ssh")
+                    {
+                        <button class="btn xs" @onclick="OpenBrowser">🔍 Server durchsuchen</button>
+                    }
+                </div>
+                <div class="monaco-box">
+                    <StandaloneCodeEditor @key="editScript" @ref="_editor" ConstructionOptions="EditorOptions"
+                                          CssClass="monaco-fill" OnDidChangeModelContent="SyncContent" />
+                </div>
+                <div style="margin-top:.6rem">
+                    <button class="btn sm go" @onclick="SaveScript">@Loc.T("Speichern")</button>
+                    <button class="btn sm" @onclick="CancelEdit">Abbrechen</button>
+                </div>
+            </div>
+
+            @if (showBrowser)
+            {
+                <div class="settings-card">
+                    <div class="res-head">
+                        <strong>Server: <code>@browsePath</code></strong>
+                        <span class="snap-btns">
+                            <button class="btn xs" @onclick="BrowseUp">⬆ ..</button>
+                            <button class="btn xs" @onclick="() => showBrowser = false">✕</button>
+                        </span>
+                    </div>
+                    @if (browseEntries.Count == 0)
+                    {
+                        <p class="muted">Leer / nicht lesbar.</p>
+                    }
+                    <div class="snap-list" style="max-height:320px;overflow:auto">
+                        @foreach (var en in browseEntries)
+                        {
+                            <button class="ai-hist" @onclick="() => Navigate(en)">@(en.IsDir ? "📁 " : "📄 ")@en.Name</button>
+                        }
+                    </div>
+                    <p class="muted">Datei anklicken = Inhalt in den Editor laden.</p>
+                </div>
+            }
+        }
+
+        @if (runOutput is not null)
+        {
+            <div class="settings-card">
+                <div class="res-head">
+                    <strong>@runName</strong>
+                    @if (running)
+                    {
+                        <span class="pill warn">läuft…</span>
+                    }
+                    else if (runExit is not null)
+                    {
+                        <span class="pill @(runExit == 0 ? "on" : "warn")">@(runExit == 0 ? "✓ OK" : $"✗ exit {runExit}")</span>
+                    }
+                </div>
+                <pre class="task-log" style="max-height:360px">@runOutput</pre>
+            </div>
+        }
+
+        <h2>Links</h2>
+        <div class="links-list">
+            <a class="link-card" href="@PveUiUrl" target="_blank" rel="noopener">
+                <strong>@Loc.T("Proxmox öffnen") ↗</strong>
+                <span class="muted">@Loc.T("Verwaltung / Konsole im PVE-Webinterface")</span>
+            </a>
+            <a class="link-card" href="@ConsoleUrl" target="_blank" rel="noopener">
+                <strong>@Loc.T("Konsole") ↗</strong>
+                <span class="muted">@Loc.T("noVNC-Konsole von") @guest.Name @Loc.T("direkt öffnen")</span>
+            </a>
+
+            @if (served.Count > 0)
+            {
+                @foreach (var h in served)
+                {
+                    @foreach (var d in h.DomainNames)
+                    {
+                        <a class="link-card" href="https://@d" target="_blank" rel="noopener">
+                            <strong>@d ↗</strong>
+                            <span class="muted">@Loc.T("bedient von dieser Ressource (Port") @h.ForwardPort · @(h.Online ? "online" : "offline"))</span>
+                        </a>
+                    }
+                }
+            }
+            else if (guest.Ip is not null)
+            {
+                <div class="link-card muted-card">@Loc.T("Keine NPM-Domain zeigt auf") @guest.Ip.</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int VmId { get; set; }
+
+    private PveGuest? guest;
+    private bool busy;
+    private string? bkpMsg;
+    private string? snapMsg;
+    private IReadOnlyList<RrdPoint> rrd = [];
+    private List<Snapshot> snaps = [];
+    private List<GuestScript> scripts = [];
+    private GuestScript? editScript;
+    private string? scriptMsg;
+    private bool running;
+    private string? runOutput;
+    private string? runName;
+    private int? runExit;
+    private CancellationTokenSource? runCts;
+    private StandaloneCodeEditor? _editor;
+    private bool showBrowser;
+    private string browsePath = ".";
+    private List<DirEntry> browseEntries = [];
+
+    private StandaloneEditorConstructionOptions EditorOptions(StandaloneCodeEditor _) => new()
+    {
+        Language = "shell",
+        Value = editScript?.Content ?? "",
+        Theme = "vs-dark",
+        AutomaticLayout = true,
+        FontSize = 13,
+        Minimap = new EditorMinimapOptions { Enabled = false },
+        ScrollBeyondLastLine = false,
+    };
+
+    private IReadOnlyList<double> CpuHist => rrd.Select(p => p.Cpu).ToList();
+    private IReadOnlyList<double> MemHist => rrd.Select(p => p.Mem).ToList();
+
+    private async Task BackupNow()
+    {
+        if (guest is null) return;
+        var target = Data.BackupTarget;
+        if (string.IsNullOrEmpty(target)) { bkpMsg = Loc.T("Kein Backup-Ziel konfiguriert — in Settings wählen."); return; }
+        if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {guest.Name} auf '{target}' starten?")) return;
+        var ok = await Data.TriggerBackupAsync(guest);
+        bkpMsg = ok ? $"Backup → '{target}' gestartet (erscheint in ein paar Minuten)." : Loc.T("Backup-Start fehlgeschlagen.");
+    }
+
+    private async Task RestoreNow()
+    {
+        if (guest is null) return;
+        if (guest.IsRunning) { bkpMsg = Loc.T("Zum Wiederherstellen erst die Ressource stoppen."); return; }
+        var b = Data.BackupFor(guest.VmId);
+        if (b is null) { bkpMsg = Loc.T("Kein Backup vorhanden."); return; }
+        var warn = guest.Name == "core" ? "\n\nACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!" : "";
+        var typed = await JS.InvokeAsync<string>("prompt",
+            $"WARNUNG: {guest.Name} (#{guest.VmId}) wird KOMPLETT mit dem Backup vom {b.Time.LocalDateTime:yyyy-MM-dd HH:mm} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{warn}\n\nZum Bestätigen den Namen exakt tippen: {guest.Name}");
+        if (typed != guest.Name) { bkpMsg = Loc.T("Restore abgebrochen (Name nicht bestätigt)."); return; }
+        busy = true;
+        StateHasChanged();
+        var err = await Data.RestoreAsync(guest);
+        busy = false;
+        bkpMsg = err is null
+            ? Loc.T("Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten).")
+            : $"Restore fehlgeschlagen: {err}";
+    }
+
+    private string PveUiUrl => Conn.Current.PveBaseUrl.Replace("/api2/json", "");
+
+    private string ConsoleUrl => guest is null ? PveUiUrl
+        : $"{PveUiUrl}/?console={(guest.Type == "qemu" ? "kvm" : "lxc")}&novnc=1&vmid={guest.VmId}&node={guest.Node}&resize=off";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += OnChanged;
+        if (Data.LastUpdated == default) await Data.RefreshAsync();
+        Resolve();
+        await LoadExtras();
+    }
+
+    protected override void OnParametersSet() => Resolve();
+
+    private bool _relayout;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_relayout && _editor is not null)
+        {
+            _relayout = false;
+            try { await Task.Delay(50); await _editor.Layout(); } catch { }
+        }
+    }
+
+    private void Resolve() => guest = Data.Guests.FirstOrDefault(g => g.VmId == VmId);
+
+    private async Task LoadExtras()
+    {
+        if (guest is null) return;
+        rrd = await Pve.GetGuestRrdAsync(guest.Node, guest.Type, guest.VmId);
+        snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
+        scripts = await Scripts.ListAsync(guest.VmId);
+    }
+
+    private void NewScript()
+    {
+        if (guest is null) return;
+        editScript = new GuestScript { VmId = guest.VmId, SshHost = guest.Ip ?? "", SshUser = "root", SshPort = 22, Content = "#!/usr/bin/env bash\n" };
+        _relayout = true;
+    }
+
+    private void EditScript(GuestScript sc)
+    {
+        editScript = new GuestScript
+        {
+            Id = sc.Id, VmId = sc.VmId, Name = sc.Name, Content = sc.Content, ExecMode = sc.ExecMode,
+            SshHost = sc.SshHost, SshPort = sc.SshPort, SshUser = sc.SshUser, SshAuth = sc.SshAuth, SshAuthIsKey = sc.SshAuthIsKey
+        };
+        _relayout = true;
+    }
+
+    private async Task SyncContent()
+    {
+        if (editScript is null || _editor is null) return;
+        try { editScript.Content = await _editor.GetValue(); } catch { }
+    }
+
+    private async Task SaveScript()
+    {
+        if (editScript is null) return;
+        await SyncContent();
+        if (string.IsNullOrWhiteSpace(editScript.Name)) { scriptMsg = "Name nötig."; return; }
+        try
+        {
+            await Scripts.SaveAsync(editScript);
+            editScript = null;
+            showBrowser = false;
+            if (guest is not null) scripts = await Scripts.ListAsync(guest.VmId);
+            scriptMsg = Loc.T("Gespeichert.");
+        }
+        catch (Exception ex) { scriptMsg = "Fehler beim Speichern: " + ex.Message; }
+    }
+
+    private void CancelEdit() { editScript = null; showBrowser = false; }
+
+    private async Task OnUpload(InputFileChangeEventArgs e)
+    {
+        if (editScript is null || e.File is null) return;
+        using var r = new StreamReader(e.File.OpenReadStream(2_000_000));
+        var text = await r.ReadToEndAsync();
+        editScript.Content = text;
+        if (string.IsNullOrWhiteSpace(editScript.Name)) editScript.Name = e.File.Name;
+        await SetEditorValue(text);
+    }
+
+    private async Task SetEditorValue(string text)
+    {
+        if (_editor is null) return;
+        try { await _editor.SetValue(text); } catch { }
+    }
+
+    private async Task OpenBrowser()
+    {
+        if (editScript is null) return;
+        if (string.IsNullOrWhiteSpace(editScript.SshHost)) { scriptMsg = "SSH-Host + Zugang zuerst ausfüllen."; return; }
+        showBrowser = true;
+        browsePath = ".";
+        await LoadBrowse();
+    }
+
+    private async Task LoadBrowse()
+    {
+        if (editScript is not null) browseEntries = await Scripts.ListDirAsync(editScript, browsePath);
+    }
+
+    private async Task BrowseUp()
+    {
+        browsePath = browsePath.TrimEnd('/') + "/..";
+        await LoadBrowse();
+    }
+
+    private async Task Navigate(DirEntry en)
+    {
+        if (editScript is null) return;
+        var full = browsePath.TrimEnd('/') + "/" + en.Name;
+        if (en.IsDir) { browsePath = full; await LoadBrowse(); return; }
+        var content = await Scripts.CatFileAsync(editScript, full);
+        editScript.Content = content;
+        if (string.IsNullOrWhiteSpace(editScript.Name)) editScript.Name = en.Name;
+        await SetEditorValue(content);
+        showBrowser = false;
+    }
+
+    private async Task DelScript(GuestScript sc)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Script '{sc.Name}' löschen?")) return;
+        await Scripts.DeleteAsync(sc.Id);
+        if (guest is not null) scripts = await Scripts.ListAsync(guest.VmId);
+    }
+
+    private async Task RunScript(GuestScript sc)
+    {
+        running = true; runExit = null; runOutput = ""; runName = sc.Name;
+        StateHasChanged();
+        runCts = new CancellationTokenSource();
+        try
+        {
+            await foreach (var chunk in Scripts.RunAsync(sc.Id, runCts.Token))
+            {
+                runOutput += chunk;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex) { runOutput += $"\n⚠ {ex.Message}"; }
+        finally
+        {
+            running = false;
+            if (guest is not null) { scripts = await Scripts.ListAsync(guest.VmId); runExit = scripts.FirstOrDefault(x => x.Id == sc.Id)?.LastExit; }
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CreateSnap()
+    {
+        if (guest is null) return;
+        var name = await JS.InvokeAsync<string>("prompt", Loc.T("Snapshot-Name (Buchstabe zuerst, dann Buchstaben/Ziffern/_):"), $"snap{DateTime.Now:MMddHHmm}");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        busy = true; StateHasChanged();
+        var err = await Pve.CreateSnapshotAsync(guest.Node, guest.Type, guest.VmId, name.Trim(), null);
+        snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
+        busy = false;
+        snapMsg = err is null ? $"Snapshot '{name}' erstellt." : $"Fehlgeschlagen: {err}";
+    }
+
+    private async Task Rollback(Snapshot s)
+    {
+        if (guest is null) return;
+        var warn = guest.IsRunning ? "\n\nGuest läuft — Rollback verwirft den aktuellen Zustand." : "";
+        if (!await JS.InvokeAsync<bool>("confirm", $"Auf Snapshot '{s.Name}' zurückrollen? Der aktuelle Zustand geht verloren.{warn}")) return;
+        busy = true; StateHasChanged();
+        var err = await Pve.RollbackSnapshotAsync(guest.Node, guest.Type, guest.VmId, s.Name);
+        busy = false;
+        snapMsg = err is null ? $"Rollback auf '{s.Name}' gestartet (im Task/Konsole beobachten)." : $"Rollback fehlgeschlagen: {err}";
+    }
+
+    private async Task DeleteSnap(Snapshot s)
+    {
+        if (guest is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Snapshot '{s.Name}' löschen?")) return;
+        busy = true; StateHasChanged();
+        var err = await Pve.DeleteSnapshotAsync(guest.Node, guest.Type, guest.VmId, s.Name);
+        snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
+        busy = false;
+        snapMsg = err is null ? $"Snapshot '{s.Name}' gelöscht." : $"Löschen fehlgeschlagen: {err}";
+    }
+
+    private string BackupText()
+    {
+        var b = Data.BackupFor(VmId);
+        return b is null ? Loc.T("– (keins)") : $"{b.Time.LocalDateTime:yyyy-MM-dd HH:mm} · {Format.Bytes(b.Size)}";
+    }
+
+    private void OnChanged() => InvokeAsync(() => { Resolve(); StateHasChanged(); });
+
+    private async Task Act(string action)
+    {
+        if (guest is null) return;
+        if (action is "shutdown" or "reboot")
+        {
+            var verb = action == "shutdown" ? "stoppen" : "neu starten";
+            var warn = guest.Name == "core" ? " ⚠ core hostet Proxy + Tunnel — dann ist ALLES offline!" : "";
+            if (!await JS.InvokeAsync<bool>("confirm", $"{guest.Kind} {guest.Name} wirklich {verb}?{warn}")) return;
+        }
+        busy = true;
+        StateHasChanged();
+        await Pve.ActionAsync(guest.Node, guest.Type, guest.VmId, action);
+        await Task.Delay(2000);
+        await Data.RefreshAsync();
+        Resolve();
+        busy = false;
+    }
+
+    public void Dispose()
+    {
+        Data.Changed -= OnChanged;
+        runCts?.Cancel();
+        runCts?.Dispose();
+    }
+}

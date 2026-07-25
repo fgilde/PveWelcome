@@ -1,0 +1,134 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject UserService UserSvc
+
+<PageTitle>@Loc.T("Users")</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <h1>@Loc.T("Benutzer")</h1>
+
+    <div class="users">
+        @foreach (var u in users)
+        {
+            <div class="user-row">
+                <span class="uname">@u.Username</span>
+                <span class="pill role">@u.Role</span>
+                <span class="muted">seit @u.CreatedAt.ToString("yyyy-MM-dd")</span>
+                <input class="pw-inline" type="password" placeholder="@Loc.T("neues Passwort")" @bind="pwInputs[u.Id]" />
+                <button class="btn xs" @onclick="() => SetPw(u.Id)">@Loc.T("Passwort setzen")</button>
+                @if (string.IsNullOrEmpty(u.TotpSecret))
+                {
+                    <button class="btn xs" @onclick="() => StartEnroll(u.Id)">@Loc.T("2FA einrichten")</button>
+                }
+                else
+                {
+                    <span class="pill on">@Loc.T("2FA aktiv")</span>
+                    <button class="btn xs danger" @onclick="() => DisableTotp(u.Id)">@Loc.T("2FA aus")</button>
+                }
+                <button class="btn xs danger" disabled="@(users.Count <= 1)" @onclick="() => Delete(u.Id)">@Loc.T("Löschen")</button>
+            </div>
+        }
+    </div>
+
+    @if (enrollId is not null)
+    {
+        <div class="settings-card">
+            <h3>@Loc.T("2FA einrichten für") @EnrollName</h3>
+            <p class="muted">@Loc.T("Secret (oder die URI) in eine Authenticator-App eingeben, dann den aktuellen 6-stelligen Code zum Bestätigen.")</p>
+            <p><strong>Secret:</strong> <code>@enrollSecret</code></p>
+            <p class="muted" style="word-break:break-all"><code>@Totp.OtpAuthUri(enrollSecret, EnrollName)</code></p>
+            <input placeholder="123456" inputmode="numeric" @bind="enrollCode" />
+            <button class="btn sm go" @onclick="ConfirmEnroll">@Loc.T("Aktivieren")</button>
+            <button class="btn sm" @onclick="CancelEnroll">@Loc.T("Abbrechen")</button>
+        </div>
+    }
+
+    <h2>@Loc.T("Neuen Benutzer anlegen")</h2>
+    <div class="add-user">
+        <input placeholder="@Loc.T("Benutzername")" @bind="newName" />
+        <input placeholder="@Loc.T("Passwort")" type="password" @bind="newPass" />
+        <select @bind="newRole">
+            <option value="Admin">Admin</option>
+            <option value="Viewer">Viewer</option>
+        </select>
+        <button class="btn sm go" @onclick="Create">@Loc.T("Anlegen")</button>
+    </div>
+    @if (msg is not null)
+    {
+        <p class="muted">@msg</p>
+    }
+</div>
+
+@code {
+    private List<AppUser> users = [];
+    private Dictionary<int, string> pwInputs = new();
+    private string newName = "";
+    private string newPass = "";
+    private string newRole = "Admin";
+    private string? msg;
+    private int? enrollId;
+    private string enrollSecret = "";
+    private string enrollCode = "";
+    private string EnrollName => users.FirstOrDefault(u => u.Id == enrollId)?.Username ?? "";
+
+    private void StartEnroll(int id) { enrollId = id; enrollSecret = Totp.GenerateSecret(); enrollCode = ""; msg = null; }
+    private void CancelEnroll() { enrollId = null; enrollSecret = ""; enrollCode = ""; }
+
+    private async Task ConfirmEnroll()
+    {
+        if (enrollId is null) return;
+        if (!Totp.Verify(enrollSecret, enrollCode)) { msg = Loc.T("Code stimmt nicht — nochmal prüfen (Uhrzeit synchron?)."); return; }
+        await UserSvc.SetTotpAsync(enrollId.Value, enrollSecret);
+        msg = Loc.T("2FA aktiviert.");
+        CancelEnroll();
+        await Reload();
+    }
+
+    private async Task DisableTotp(int id)
+    {
+        await UserSvc.SetTotpAsync(id, null);
+        msg = Loc.T("2FA deaktiviert.");
+        await Reload();
+    }
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        users = await UserSvc.ListAsync();
+        pwInputs = users.ToDictionary(u => u.Id, _ => "");
+    }
+
+    private async Task SetPw(int id)
+    {
+        msg = null;
+        var pw = pwInputs.GetValueOrDefault(id, "");
+        if (string.IsNullOrWhiteSpace(pw)) { msg = Loc.T("Passwort darf nicht leer sein."); return; }
+        var ok = await UserSvc.SetPasswordAsync(id, pw);
+        msg = ok ? Loc.T("Passwort geändert.") : Loc.T("Fehler beim Ändern.");
+        pwInputs[id] = "";
+    }
+
+    private async Task Create()
+    {
+        msg = null;
+        if (string.IsNullOrWhiteSpace(newName) || string.IsNullOrWhiteSpace(newPass))
+        {
+            msg = Loc.T("Name und Passwort nötig.");
+            return;
+        }
+        var ok = await UserSvc.CreateAsync(newName, newPass, newRole);
+        msg = ok ? $"'{newName}' angelegt." : $"'{newName}' existiert schon.";
+        if (ok) { newName = ""; newPass = ""; }
+        await Reload();
+    }
+
+    private async Task Delete(int id)
+    {
+        await UserSvc.DeleteAsync(id);
+        await Reload();
+    }
+}

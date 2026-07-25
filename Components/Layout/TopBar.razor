@@ -1,0 +1,69 @@
+@inject BrandResolver Brands
+@inject NavigationManager Nav
+
+<header class="topbar">
+    <a class="brand" href="/dashboard">
+        <span class="dot" style="background:@brand.Accent"></span>
+        <strong>@brand.Name</strong>
+        <span class="sub">console</span>
+    </a>
+
+    <nav class="links">
+        <a href="/dashboard">@Loc.T("Dashboard")</a>
+        <AuthorizeView Roles="Admin">
+            <div class="dropdown">
+                <button type="button" class="drop-toggle">@Loc.T("Verwaltung") <span class="caret">▾</span></button>
+                <div class="drop-menu">
+                    <a href="/admin/npm">NPM</a>
+                    <a href="/admin/backups">@Loc.T("Backups")</a>
+                    <a href="/admin/ai">AI</a>
+                    <a href="/admin/mcp">MCP</a>
+                    <a href="/admin/settings">@Loc.T("Settings")</a>
+                    <a href="/admin/users">@Loc.T("Users")</a>
+                </div>
+            </div>
+        </AuthorizeView>
+    </nav>
+
+    <div class="tb-right">
+        <div class="lang" title="Sprache / Language">
+            <button type="button" class="@(Loc.IsEn ? "" : "on")" @onclick='() => SetLang("de")'>DE</button>
+            <button type="button" class="@(Loc.IsEn ? "on" : "")" @onclick='() => SetLang("en")'>EN</button>
+        </div>
+        <div class="dropdown user">
+            <button type="button" class="drop-toggle user-btn">
+                <span class="avatar">@Initials</span>
+                <span class="uname">@username</span>
+                <span class="caret">▾</span>
+            </button>
+            <div class="drop-menu right">
+                <span class="drop-label">@username</span>
+                <form method="post" action="/auth/logout" class="logout-form">
+                    <AntiforgeryToken />
+                    <button type="submit" class="logout">@Loc.T("Logout")</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</header>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private Brand brand = new();
+    private string username = "";
+    private string Initials => string.IsNullOrEmpty(username) ? "?" : username[..1].ToUpperInvariant();
+    private string ReturnUrl => Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri));
+
+    private void SetLang(string c) => Nav.NavigateTo($"/set-lang?c={c}&r={ReturnUrl}", forceLoad: true);
+
+    protected override async Task OnInitializedAsync()
+    {
+        brand = Brands.Resolve(new Uri(Nav.BaseUri).Host);
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            username = state.User.Identity?.Name ?? "";
+        }
+    }
+}
