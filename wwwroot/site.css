@@ -341,8 +341,9 @@ textarea.code { width:100%; font-family:"JetBrains Mono", ui-monospace, monospac
   background:#0d0d14; color:#c9d1d9; border:1px solid var(--line); border-radius:8px; padding:.6rem .8rem; resize:vertical; }
 .script-toolbar { display:flex; gap:.5rem; align-items:center; margin-top:.6rem; margin-bottom:.4rem; }
 .script-toolbar .spacer { flex:1; }
-.monaco-box { border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-.monaco-fill { height:360px; width:100%; }
+.monaco-box { height:360px; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.monaco-fill { height:100%; width:100%; }
+.monaco-box > div, .monaco-box .monaco-editor-container { height:100%; }
 .hidden-file { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
 .muted.small, p.small { font-size:.8rem; }
 

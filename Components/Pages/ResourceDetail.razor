@@ -367,8 +367,11 @@
 
     private async Task EditorReady()
     {
-        if (_editor is null) return;
-        try { await Task.Delay(60); await _editor.Layout(); } catch { }
+        for (var i = 0; i < 5 && _editor is not null; i++)
+        {
+            await Task.Delay(100);
+            try { await _editor.Layout(); } catch { }
+        }
     }
 
     private void Resolve() => guest = Data.Guests.FirstOrDefault(g => g.VmId == VmId);

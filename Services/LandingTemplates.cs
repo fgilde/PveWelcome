@@ -136,6 +136,55 @@ public static class LandingTemplates
             .lp-links span{color:#9aa0ab;font-size:.85rem}
             """,
             ""),
+
+        new("cyber", "Cyber-Lab", "Dunkles Hacker-Lab: Neon-Grid, Glitch-Titel, Scanlines.",
+            """
+            <div class="lp-cyber">
+              <div class="grid"></div><div class="scan"></div>
+              <div class="mid">
+                <div class="tagline">// build · break · ship</div>
+                <h1 data-t="nksoft">nksoft</h1>
+                <p class="sub">Software &amp; Infrastruktur — self-hosted.</p>
+                <a class="btn" href="#">ENTER ▸</a>
+              </div>
+            </div>
+            """,
+            """
+            .lp-cyber{position:fixed;inset:0;overflow:hidden;background:#05070a;color:#c8ffe6;font-family:'JetBrains Mono',ui-monospace,monospace;display:grid;place-items:center;text-align:center}
+            .lp-cyber .grid{position:absolute;inset:-2px;background-image:linear-gradient(#0aff9d22 1px,transparent 1px),linear-gradient(90deg,#0aff9d22 1px,transparent 1px);background-size:44px 44px;
+              transform:perspective(500px) rotateX(60deg) translateY(-10%);transform-origin:top;animation:slide 6s linear infinite;opacity:.6}
+            @keyframes slide{to{background-position:0 44px}}
+            .lp-cyber .scan{position:absolute;inset:0;background:repeating-linear-gradient(#0000 0 2px,#0aff9d0a 2px 4px);pointer-events:none}
+            .lp-cyber .mid{position:relative;z-index:2;padding:2rem}
+            .lp-cyber .tagline{color:#57d1ff;letter-spacing:.3em;font-size:.8rem;margin-bottom:1rem}
+            .lp-cyber h1{position:relative;font-size:clamp(3rem,13vw,8rem);margin:0;font-weight:800;color:#eafff6;text-shadow:0 0 18px #0aff9d88}
+            .lp-cyber h1::before,.lp-cyber h1::after{content:attr(data-t);position:absolute;left:0;top:0;width:100%}
+            .lp-cyber h1::before{color:#ff2e88;animation:g1 2.5s infinite steps(2)}
+            .lp-cyber h1::after{color:#22d3ee;animation:g2 3s infinite steps(2)}
+            @keyframes g1{0%,97%{clip-path:inset(0 0 100% 0);transform:translate(0)}50%{clip-path:inset(20% 0 40% 0);transform:translate(-3px,1px)}}
+            @keyframes g2{0%,94%{clip-path:inset(100% 0 0 0);transform:translate(0)}55%{clip-path:inset(60% 0 10% 0);transform:translate(3px,-1px)}}
+            .lp-cyber .sub{color:#7fdcc0;margin:1rem 0 1.8rem}
+            .lp-cyber .btn{display:inline-block;padding:.7rem 1.6rem;border:1px solid #0aff9d;color:#0aff9d;text-decoration:none;font-weight:700;letter-spacing:.15em;border-radius:4px;transition:.15s}
+            .lp-cyber .btn:hover{background:#0aff9d;color:#04120c;box-shadow:0 0 24px #0aff9daa}
+            """,
+            ""),
+
+        new("spotlight", "Spotlight", "Ein Lichtkegel folgt der Maus über dunklem Grund.",
+            """
+            <div class="lp-spot" id="spot">
+              <div class="c"><h1>nksoft</h1><p>Beweg die Maus.</p></div>
+            </div>
+            """,
+            """
+            .lp-spot{position:fixed;inset:0;background:#0a0a0f radial-gradient(300px circle at var(--x,50%) var(--y,50%),#ffffff14,transparent 60%);
+              color:#f0f0f5;font-family:Inter,system-ui,sans-serif;display:grid;place-items:center;text-align:center;transition:background .05s}
+            .lp-spot h1{font-size:clamp(3rem,11vw,7rem);margin:0;font-weight:800}
+            .lp-spot p{color:#9aa;margin-top:.5rem}
+            """,
+            """
+            const s=document.getElementById('spot');
+            addEventListener('mousemove',e=>{s.style.setProperty('--x',e.clientX+'px');s.style.setProperty('--y',e.clientY+'px');});
+            """),
     ];
 
     public static LandingTemplate Get(string key) => All.FirstOrDefault(t => t.Key == key) ?? All[0];
