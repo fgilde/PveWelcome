@@ -50,7 +50,7 @@ public class AiService(AppDbContext db, IHttpClientFactory httpFactory, ILogger<
         catch (Exception ex)
         {
             log.LogWarning(ex, "ai send ({Provider})", s.Provider);
-            output = $"Fehler: {ex.Message}";
+            output = Loc.T("Fehler: {0}", ex.Message);
             ok = false;
         }
         db.AiRuns.Add(new AiRun { At = DateTime.UtcNow, Provider = s.Provider, Prompt = prompt, Result = output.Length > 20000 ? output[..20000] : output, Ok = ok });

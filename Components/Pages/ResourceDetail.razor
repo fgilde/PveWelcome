@@ -326,9 +326,9 @@
         if (guest is null) return;
         var target = Data.BackupTarget;
         if (string.IsNullOrEmpty(target)) { bkpMsg = Loc.T("Kein Backup-Ziel konfiguriert — in Settings wählen."); return; }
-        if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {guest.Name} auf '{target}' starten?")) return;
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Backup von {0} auf '{1}' starten?", guest.Name, target))) return;
         var ok = await Data.TriggerBackupAsync(guest);
-        bkpMsg = ok ? $"Backup → '{target}' gestartet (erscheint in ein paar Minuten)." : Loc.T("Backup-Start fehlgeschlagen.");
+        bkpMsg = ok ? Loc.T("Backup → '{0}' gestartet (erscheint in ein paar Minuten).", target) : Loc.T("Backup-Start fehlgeschlagen.");
     }
 
     private async Task RestoreNow()
@@ -337,9 +337,10 @@
         if (guest.IsRunning) { bkpMsg = Loc.T("Zum Wiederherstellen erst die Ressource stoppen."); return; }
         var b = Data.BackupFor(guest.VmId);
         if (b is null) { bkpMsg = Loc.T("Kein Backup vorhanden."); return; }
-        var warn = guest.Name == "core" ? "\n\nACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!" : "";
+        var warn = guest.Name == "core" ? "\n\n" + Loc.T("ACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!") : "";
         var typed = await JS.InvokeAsync<string>("prompt",
-            $"WARNUNG: {guest.Name} (#{guest.VmId}) wird KOMPLETT mit dem Backup vom {b.Time.LocalDateTime:yyyy-MM-dd HH:mm} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{warn}\n\nZum Bestätigen den Namen exakt tippen: {guest.Name}");
+            Loc.T("WARNUNG: {0} (#{1}) wird KOMPLETT mit dem Backup vom {2} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{3}\n\nZum Bestätigen den Namen exakt tippen: {0}",
+                guest.Name, guest.VmId, b.Time.LocalDateTime.ToString("yyyy-MM-dd HH:mm"), warn));
         if (typed != guest.Name) { bkpMsg = Loc.T("Restore abgebrochen (Name nicht bestätigt)."); return; }
         busy = true;
         StateHasChanged();
@@ -347,7 +348,7 @@
         busy = false;
         bkpMsg = err is null
             ? Loc.T("Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten).")
-            : $"Restore fehlgeschlagen: {err}";
+            : Loc.T("Restore fehlgeschlagen: {0}", err);
     }
 
     private string PveUiUrl => Conn.Current.PveBaseUrl.Replace("/api2/json", "");
@@ -473,7 +474,7 @@
 
     private async Task DelScript(GuestScript sc)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Script '{sc.Name}' löschen?")) return;
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Script '{0}' löschen?", sc.Name))) return;
         await Scripts.DeleteAsync(sc.Id);
         if (guest is not null) scripts = await Scripts.ListAsync(guest.VmId);
     }
@@ -509,29 +510,29 @@
         var err = await Pve.CreateSnapshotAsync(guest.Node, guest.Type, guest.VmId, name.Trim(), null);
         snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
         busy = false;
-        snapMsg = err is null ? $"Snapshot '{name}' erstellt." : $"Fehlgeschlagen: {err}";
+        snapMsg = err is null ? Loc.T("Snapshot '{0}' erstellt.", name) : Loc.T("Fehlgeschlagen: {0}", err);
     }
 
     private async Task Rollback(Snapshot s)
     {
         if (guest is null) return;
-        var warn = guest.IsRunning ? "\n\nGuest läuft — Rollback verwirft den aktuellen Zustand." : "";
-        if (!await JS.InvokeAsync<bool>("confirm", $"Auf Snapshot '{s.Name}' zurückrollen? Der aktuelle Zustand geht verloren.{warn}")) return;
+        var warn = guest.IsRunning ? "\n\n" + Loc.T("Guest läuft — Rollback verwirft den aktuellen Zustand.") : "";
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Auf Snapshot '{0}' zurückrollen? Der aktuelle Zustand geht verloren.{1}", s.Name, warn))) return;
         busy = true; StateHasChanged();
         var err = await Pve.RollbackSnapshotAsync(guest.Node, guest.Type, guest.VmId, s.Name);
         busy = false;
-        snapMsg = err is null ? $"Rollback auf '{s.Name}' gestartet (im Task/Konsole beobachten)." : $"Rollback fehlgeschlagen: {err}";
+        snapMsg = err is null ? Loc.T("Rollback auf '{0}' gestartet (im Task/Konsole beobachten).", s.Name) : Loc.T("Rollback fehlgeschlagen: {0}", err);
     }
 
     private async Task DeleteSnap(Snapshot s)
     {
         if (guest is null) return;
-        if (!await JS.InvokeAsync<bool>("confirm", $"Snapshot '{s.Name}' löschen?")) return;
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Snapshot '{0}' löschen?", s.Name))) return;
         busy = true; StateHasChanged();
         var err = await Pve.DeleteSnapshotAsync(guest.Node, guest.Type, guest.VmId, s.Name);
         snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
         busy = false;
-        snapMsg = err is null ? $"Snapshot '{s.Name}' gelöscht." : $"Löschen fehlgeschlagen: {err}";
+        snapMsg = err is null ? Loc.T("Snapshot '{0}' gelöscht.", s.Name) : Loc.T("Löschen fehlgeschlagen: {0}", err);
     }
 
     private string BackupText()

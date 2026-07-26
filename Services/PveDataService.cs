@@ -110,18 +110,18 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
         {
             var list = new List<string>();
             foreach (var s in Storages.Where(s => s.Fraction > 0.90))
-                list.Add($"Storage '{s.Name}' ist zu {s.Fraction * 100:0} % voll");
+                list.Add(Loc.T("Storage '{0}' ist zu {1} % voll", s.Name, (s.Fraction * 100).ToString("0")));
             foreach (var g in Guests.Where(g => !g.IsRunning))
-                list.Add($"{g.Kind} {g.Name} (#{g.VmId}) ist gestoppt");
+                list.Add(Loc.T("{0} {1} (#{2}) ist gestoppt", g.Kind, g.Name, g.VmId));
             var noBackup = Guests.Count(g => BackupFor(g.VmId) is null);
             if (Backups.Count > 0 && noBackup > 0)
-                list.Add($"{noBackup} Guest(s) ohne Backup");
+                list.Add(Loc.T("{0} Guest(s) ohne Backup", noBackup));
             if (UpdatesAvailable > 0)
-                list.Add($"{UpdatesAvailable} Paket-Update(s) am Node verfügbar");
+                list.Add(Loc.T("{0} Paket-Update(s) am Node verfügbar", UpdatesAvailable));
             foreach (var d in Disks.Where(d => !d.Healthy && d.Health is not ("UNKNOWN" or "")))
-                list.Add($"Platte {d.DevPath} SMART-Status: {d.Health}");
+                list.Add(Loc.T("Platte {0} SMART-Status: {1}", d.DevPath, d.Health));
             foreach (var m in Monitors.Where(m => m.Enabled && MonitorUp.TryGetValue(m.Id, out var up) && !up))
-                list.Add($"Monitor '{m.Name}' nicht erreichbar");
+                list.Add(Loc.T("Monitor '{0}' nicht erreichbar", m.Name));
             return list;
         }
     }

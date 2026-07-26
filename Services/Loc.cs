@@ -26,4 +26,8 @@ public static class Loc
 
     /// Translate a German source string to the current UI culture.
     public static string T(string de) => IsEn && En.TryGetValue(de, out var v) && !string.IsNullOrEmpty(v) ? v : de;
+
+    /// Translate a German source string with {0}, {1}… placeholders, then format with args.
+    /// Key in en.json uses the same placeholders, e.g. "Script „{0}“ löschen?" → "Delete script „{0}“?".
+    public static string T(string de, params object?[] args) => string.Format(T(de), args);
 }

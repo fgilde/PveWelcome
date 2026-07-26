@@ -37,7 +37,7 @@ public class ScriptService(AppDbContext db, PveDataService data, PveClient pve, 
     public async IAsyncEnumerable<string> RunAsync(int id, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var s = await GetAsync(id);
-        if (s is null) { yield return "Script nicht gefunden."; yield break; }
+        if (s is null) { yield return Loc.T("Script nicht gefunden."); yield break; }
 
         var sb = new StringBuilder();
         var exit = -1;
@@ -45,8 +45,8 @@ public class ScriptService(AppDbContext db, PveDataService data, PveClient pve, 
         if (s.ExecMode != "ssh")
         {
             var g = data.Guests.FirstOrDefault(x => x.VmId == s.VmId);
-            if (g is null) { yield return "Guest nicht in PVE gefunden — SSH-Modus nutzen."; yield break; }
-            if (g.Type != "qemu") { yield return $"PVE-Agent-Exec geht nur für QEMU-VMs. '{g.Name}' ist {g.Kind} — bitte SSH-Modus wählen."; yield break; }
+            if (g is null) { yield return Loc.T("Guest nicht in PVE gefunden — SSH-Modus nutzen."); yield break; }
+            if (g.Type != "qemu") { yield return Loc.T("PVE-Agent-Exec geht nur für QEMU-VMs. '{0}' ist {1} — bitte SSH-Modus wählen.", g.Name, g.Kind); yield break; }
             yield return $"[PVE-Agent-Exec · {g.Node}/#{s.VmId} · läuft…]\n";
             var (code, outp, err) = await pve.GuestExecAsync(g.Node, s.VmId, s.Content, ct);
             exit = code;
@@ -57,7 +57,7 @@ public class ScriptService(AppDbContext db, PveDataService data, PveClient pve, 
             yield break;
         }
 
-        if (string.IsNullOrWhiteSpace(s.SshHost)) { yield return "Kein SSH-Host konfiguriert."; yield break; }
+        if (string.IsNullOrWhiteSpace(s.SshHost)) { yield return Loc.T("Kein SSH-Host konfiguriert."); yield break; }
         var ci = BuildCi(s);
 
         var b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(s.Content.Replace("\r\n", "\n")));
@@ -132,7 +132,7 @@ public class ScriptService(AppDbContext db, PveDataService data, PveClient pve, 
             client.Disconnect();
             return r;
         }
-        catch (Exception ex) { return $"# Fehler beim Lesen: {ex.Message}"; }
+        catch (Exception ex) { return Loc.T("# Fehler beim Lesen: {0}", ex.Message); }
     });
 
     private static Renci.SshNet.ConnectionInfo BuildCi(GuestScript s)

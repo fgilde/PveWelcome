@@ -233,11 +233,11 @@
     {
         var target = Data.BackupTarget;
         if (string.IsNullOrEmpty(target)) { bkpMsg = Loc.T("Kein Backup-Ziel konfiguriert — in Settings wählen."); return; }
-        if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {g.Name} auf '{target}' starten?")) return;
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Backup von {0} auf '{1}' starten?", g.Name, target))) return;
         var ok = await Data.TriggerBackupAsync(g);
         bkpMsg = ok
-            ? $"Backup von {g.Name} → '{target}' gestartet (erscheint in ein paar Minuten)."
-            : $"Backup-Start für {g.Name} fehlgeschlagen.";
+            ? Loc.T("Backup von {0} → '{1}' gestartet (erscheint in ein paar Minuten).", g.Name, target)
+            : Loc.T("Backup-Start für {0} fehlgeschlagen.", g.Name);
     }
 
     private System.Threading.Timer? _ticker;
@@ -273,7 +273,8 @@
     private async Task ToggleJob(BackupJob j)
     {
         var err = await Pve.SetBackupJobEnabledAsync(j.Id, !j.Enabled);
-        bkpMsg = err is null ? $"Backup-Job {(j.Enabled ? "deaktiviert" : "aktiviert")}." : $"Fehler: {err}";
+        var st = j.Enabled ? Loc.T("deaktiviert") : Loc.T("aktiviert");
+        bkpMsg = err is null ? Loc.T("Backup-Job {0}.", st) : Loc.T("Fehler: {0}", err);
         await Data.RefreshAsync();
     }
 
@@ -281,9 +282,9 @@
     {
         if (action is "shutdown" or "reboot")
         {
-            var verb = action == "shutdown" ? "stoppen" : "neu starten";
-            var warn = g.Name == "core" ? " ⚠ core hostet Proxy + Tunnel — dann ist ALLES (auch diese Seite) offline!" : "";
-            if (!await JS.InvokeAsync<bool>("confirm", $"{g.Kind} {g.Name} wirklich {verb}?{warn}")) return;
+            var verb = action == "shutdown" ? Loc.T("stoppen") : Loc.T("neu starten");
+            var warn = g.Name == "core" ? " " + Loc.T("⚠ core hostet Proxy + Tunnel — dann ist ALLES (auch diese Seite) offline!") : "";
+            if (!await JS.InvokeAsync<bool>("confirm", Loc.T("{0} {1} wirklich {2}?{3}", g.Kind, g.Name, verb, warn))) return;
         }
         busyKey = Key(g);
         StateHasChanged();

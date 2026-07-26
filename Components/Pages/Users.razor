@@ -121,7 +121,7 @@
             return;
         }
         var ok = await UserSvc.CreateAsync(newName, newPass, newRole);
-        msg = ok ? $"'{newName}' angelegt." : $"'{newName}' existiert schon.";
+        msg = ok ? Loc.T("'{0}' angelegt.", newName) : Loc.T("'{0}' existiert schon.", newName);
         if (ok) { newName = ""; newPass = ""; }
         await Reload();
     }

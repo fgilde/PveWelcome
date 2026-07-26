@@ -148,26 +148,26 @@
     private async Task RestoreBackup(BackupInfo b)
     {
         var g = Data.Guests.FirstOrDefault(x => x.VmId == b.VmId);
-        if (g is not null && g.IsRunning) { bkpMsg = $"{g.Name} läuft — zum Wiederherstellen erst stoppen."; return; }
+        if (g is not null && g.IsRunning) { bkpMsg = Loc.T("{0} läuft — zum Wiederherstellen erst stoppen.", g.Name); return; }
         var name = g?.Name ?? $"#{b.VmId}";
-        var warn = name == "core" ? "\n\nACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!" : "";
+        var warn = name == "core" ? "\n\n" + Loc.T("ACHTUNG: core hostet Proxy/Tunnel + diese App — ein Restore killt ALLES!") : "";
         var typed = await JS.InvokeAsync<string>("prompt",
-            $"WARNUNG: {name} (#{b.VmId}) wird KOMPLETT mit dem Backup vom {b.Time.LocalDateTime:yyyy-MM-dd HH:mm} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{warn}\n\nZum Bestätigen den Namen exakt tippen: {name}");
+            Loc.T("WARNUNG: {0} (#{1}) wird KOMPLETT mit dem Backup vom {2} überschrieben. Der aktuelle Zustand geht unwiderruflich verloren.{3}\n\nZum Bestätigen den Namen exakt tippen: {4}", name, b.VmId, b.Time.LocalDateTime.ToString("yyyy-MM-dd HH:mm"), warn, name));
         if (typed != name) { bkpMsg = Loc.T("Restore abgebrochen (Name nicht bestätigt)."); return; }
         busy = true; StateHasChanged();
         var err = await Data.RestoreFromAsync(b);
         busy = false;
-        bkpMsg = err is null ? Loc.T("Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten).") : $"Restore fehlgeschlagen: {err}";
+        bkpMsg = err is null ? Loc.T("Restore gestartet — läuft im Hintergrund (im Proxmox-Task/Konsole beobachten).") : Loc.T("Restore fehlgeschlagen: {0}", err);
     }
 
     private async Task DeleteBackup(BackupInfo b)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Backup von {GuestName(b.VmId)} (#{b.VmId}) vom {b.Time.LocalDateTime:dd.MM.yyyy HH:mm} ({Format.Bytes(b.Size)}) löschen? Unwiderruflich.")) return;
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Backup von {0} (#{1}) vom {2} ({3}) löschen? Unwiderruflich.", GuestName(b.VmId), b.VmId, b.Time.LocalDateTime.ToString("dd.MM.yyyy HH:mm"), Format.Bytes(b.Size)))) return;
         busy = true; StateHasChanged();
         var err = await Data.DeleteBackupAsync(b);
         await Data.RefreshAsync();
         busy = false;
-        bkpMsg = err is null ? Loc.T("Backup gelöscht.") : $"Löschen fehlgeschlagen: {err}";
+        bkpMsg = err is null ? Loc.T("Backup gelöscht.") : Loc.T("Löschen fehlgeschlagen: {0}", err);
     }
 
     protected override async Task OnInitializedAsync()
@@ -192,7 +192,7 @@
     {
         if (!j.All && j.Vmids.Count == 0) { msg = Loc.T("Mindestens einen Guest wählen oder 'Alle Guests'."); return; }
         var err = await Pve.UpdateBackupJobAsync(j.Id, j.Schedule.Trim(), j.Storage, j.KeepLast, j.All, j.VmidCsv, j.Enabled);
-        msg = err is null ? Loc.T("Gespeichert.") : $"Fehler: {err}";
+        msg = err is null ? Loc.T("Gespeichert.") : Loc.T("Fehler: {0}", err);
         await Data.RefreshAsync();
     }
 
@@ -201,16 +201,17 @@
         if (string.IsNullOrWhiteSpace(nw.Storage)) { msg = Loc.T("Ziel-Storage wählen."); return; }
         if (!nw.All && nw.Vmids.Count == 0) { msg = Loc.T("Mindestens einen Guest wählen oder 'Alle Guests'."); return; }
         var err = await Pve.CreateBackupJobAsync(nw.Schedule.Trim(), nw.Storage, nw.KeepLast, nw.All, nw.VmidCsv);
-        msg = err is null ? Loc.T("Job angelegt.") : $"Fehler: {err}";
+        msg = err is null ? Loc.T("Job angelegt.") : Loc.T("Fehler: {0}", err);
         nw = new() { Schedule = "03:00", KeepLast = 1, All = true, Storage = Data.BackupStorages.FirstOrDefault() ?? "" };
         await Data.RefreshAsync();
     }
 
     private async Task Del(JobEdit j)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Backup-Job ({(j.All ? "alle Guests" : j.VmidCsv)} → {j.Storage}) löschen?")) return;
+        var sel = j.All ? Loc.T("alle Guests") : j.VmidCsv;
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Backup-Job ({0} → {1}) löschen?", sel, j.Storage))) return;
         var err = await Pve.DeleteBackupJobAsync(j.Id);
-        msg = err is null ? Loc.T("Gelöscht.") : $"Fehler: {err}";
+        msg = err is null ? Loc.T("Gelöscht.") : Loc.T("Fehler: {0}", err);
         await Data.RefreshAsync();
     }
 
