@@ -21,7 +21,19 @@
     <ReconnectModal />
     <script src="_content/BlazorMonaco/jsInterop.js"></script>
     <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
-    <script>require.config({ paths: { vs: '_content/BlazorMonaco/lib/monaco-editor/min/vs' } });</script>
+    <script>
+        // Absolute base so Monaco + its web workers resolve regardless of the current route
+        // (relative _content/... breaks on deep routes like /resource/312 and inside workers).
+        var vsBase = new URL('_content/BlazorMonaco/lib/monaco-editor/min/', document.baseURI).href;
+        window.MonacoEnvironment = {
+            getWorkerUrl: function (moduleId, label) {
+                var src = 'self.MonacoEnvironment={baseUrl:"' + vsBase + '"};'
+                        + 'importScripts("' + vsBase + 'vs/base/worker/workerMain.js");';
+                return URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+            }
+        };
+        require.config({ paths: { vs: vsBase + 'vs' } });
+    </script>
     <script>require(['vs/editor/editor.main'], function () { window.monaco = monaco; });</script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
