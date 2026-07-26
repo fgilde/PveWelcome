@@ -1,0 +1,193 @@
+@page "/admin/pages"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject LandingService Landing
+
+<PageTitle>Seiten</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <div class="page-head">
+        <h1>@Loc.T("Landing-Seiten")</h1>
+        @if (edit is null)
+        {
+            <button class="btn sm go" @onclick="() => showGallery = true">＋ @Loc.T("Neue Seite")</button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(msg))
+    {
+        <p class="muted">@msg</p>
+    }
+
+    @if (edit is null && showGallery)
+    {
+        <section class="settings-card">
+            <div class="res-head"><strong>@Loc.T("Vorlage wählen")</strong>
+                <button class="btn xs" @onclick="() => showGallery = false">✕</button></div>
+            <div class="tpl-grid">
+                @foreach (var t in LandingTemplates.All)
+                {
+                    <button class="tpl" @onclick="() => StartNew(t.Key)">
+                        <b>@t.Name</b><span>@t.Description</span>
+                    </button>
+                }
+                <button class="tpl" @onclick='() => StartNew("classic", blank:true)'>
+                    <b>Leer</b><span>Ganz von vorn (leeres HTML/CSS/JS).</span>
+                </button>
+            </div>
+        </section>
+    }
+
+    @if (edit is null && !showGallery)
+    {
+        <div class="snap-list">
+            @foreach (var p in pages)
+            {
+                <div class="snap-row">
+                    <span class="snap-name">@p.Name @if (p.IsDefault) { <span class="pill on">default</span> }</span>
+                    <span class="muted">@(string.IsNullOrWhiteSpace(p.Hosts) ? "— keine Domain —" : p.Hosts)</span>
+                    <span class="snap-btns">
+                        @if (!p.Active) { <span class="pill off">inaktiv</span> }
+                        <button class="btn xs" @onclick="() => Open(p.Id)">@Loc.T("Bearbeiten")</button>
+                        <button class="btn xs danger" @onclick="() => Del(p)">@Loc.T("Löschen")</button>
+                    </span>
+                </div>
+            }
+        </div>
+    }
+
+    @if (edit is not null)
+    {
+        <section class="settings-card">
+            <div class="settings-grid">
+                <label>Name<input @bind="edit.Name" placeholder="Meine Seite" /></label>
+                <label>Domains (Komma-getrennt)<input @bind="edit.Hosts" placeholder="nksoft.de, www.nksoft.de" /></label>
+                <label class="chk">Login-Button zeigen<input type="checkbox" @bind="edit.LoginEnabled" /></label>
+                <label class="chk">Aktiv<input type="checkbox" @bind="edit.Active" /></label>
+                <label class="chk">Default (unbehandelte Domains)<input type="checkbox" @bind="edit.IsDefault" /></label>
+            </div>
+        </section>
+
+        <div class="editor-split">
+            <div class="editor-col">
+                <div class="tabs">
+                    <button class="tab @(tab == "html" ? "on" : "")" @onclick='() => SwitchTab("html")'>HTML</button>
+                    <button class="tab @(tab == "css" ? "on" : "")" @onclick='() => SwitchTab("css")'>CSS</button>
+                    <button class="tab @(tab == "js" ? "on" : "")" @onclick='() => SwitchTab("js")'>JS</button>
+                    <span class="spacer"></span>
+                    <button class="btn xs" @onclick="Refresh">↻ Vorschau</button>
+                </div>
+                <div class="monaco-box">
+                    <StandaloneCodeEditor @key="tab" @ref="_editor" ConstructionOptions="EditorOptions"
+                                          CssClass="monaco-fill" OnDidChangeModelContent="Sync" />
+                </div>
+            </div>
+            <div class="editor-col">
+                <div class="tabs"><strong>Vorschau</strong></div>
+                <iframe class="lp-preview" sandbox="allow-scripts" srcdoc="@preview"></iframe>
+            </div>
+        </div>
+
+        <div style="margin-top:.8rem">
+            <button class="btn sm go" @onclick="Save">@Loc.T("Speichern")</button>
+            <button class="btn sm" @onclick="() => { edit = null; }">Abbrechen</button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<LandingPage> pages = [];
+    private LandingPage? edit;
+    private bool showGallery;
+    private string msg = "";
+    private string tab = "html";
+    private string preview = "";
+    private StandaloneCodeEditor? _editor;
+    private bool _relayout;
+
+    protected override async Task OnInitializedAsync() => pages = await Landing.GetAllAsync();
+
+    private StandaloneEditorConstructionOptions EditorOptions(StandaloneCodeEditor _) => new()
+    {
+        Language = tab == "css" ? "css" : tab == "js" ? "javascript" : "html",
+        Value = tab == "css" ? edit?.Css : tab == "js" ? edit?.Js : edit?.Html,
+        Theme = "vs-dark",
+        AutomaticLayout = true,
+        FontSize = 13,
+        Minimap = new EditorMinimapOptions { Enabled = false },
+        ScrollBeyondLastLine = false,
+    };
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        if (_relayout && _editor is not null)
+        {
+            _relayout = false;
+            try { await Task.Delay(50); await _editor.Layout(); } catch { }
+        }
+    }
+
+    private async Task Sync()
+    {
+        if (edit is null || _editor is null) return;
+        try
+        {
+            var v = await _editor.GetValue();
+            if (tab == "css") edit.Css = v; else if (tab == "js") edit.Js = v; else edit.Html = v;
+        }
+        catch { }
+    }
+
+    private async Task SwitchTab(string t)
+    {
+        await Sync();
+        tab = t;
+        _relayout = true;
+    }
+
+    private async Task Refresh()
+    {
+        await Sync();
+        preview = $"<!doctype html><meta charset=\"utf-8\"><style>{edit?.Css}</style>{edit?.Html}<script>{edit?.Js}</script>";
+    }
+
+    private async Task StartNew(string key, bool blank = false)
+    {
+        edit = blank
+            ? new LandingPage { Name = "Neue Seite", Template = "blank" }
+            : LandingTemplates.NewFrom(key);
+        showGallery = false;
+        tab = "html";
+        _relayout = true;
+        await Refresh();
+    }
+
+    private async Task Open(int id)
+    {
+        edit = await Landing.GetAsync(id);
+        showGallery = false;
+        tab = "html";
+        _relayout = true;
+        await Refresh();
+    }
+
+    private async Task Save()
+    {
+        if (edit is null) return;
+        await Sync();
+        if (string.IsNullOrWhiteSpace(edit.Name)) { msg = "Name nötig."; return; }
+        await Landing.SaveAsync(edit);
+        edit = null;
+        pages = await Landing.GetAllAsync();
+        msg = Loc.T("Gespeichert.");
+    }
+
+    private async Task Del(LandingPage p)
+    {
+        await Landing.DeleteAsync(p.Id);
+        pages = await Landing.GetAllAsync();
+        msg = Loc.T("Gelöscht.");
+    }
+}

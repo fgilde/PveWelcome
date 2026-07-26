@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AiSettings> AiSettings => Set<AiSettings>();
     public DbSet<AiRun> AiRuns => Set<AiRun>();
     public DbSet<GuestScript> GuestScripts => Set<GuestScript>();
+    public DbSet<LandingPage> LandingPages => Set<LandingPage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

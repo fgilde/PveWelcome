@@ -33,6 +33,7 @@ builder.Services.AddSingleton<LoginThrottle>();
 
 builder.Services.AddSingleton<ConnectionConfig>();
 builder.Services.AddSingleton<BrandResolver>();
+builder.Services.AddSingleton<LandingService>();
 builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<PveDataService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PveDataService>());
@@ -76,6 +77,7 @@ using (var scope = app.Services.CreateScope())
 }
 await app.Services.GetRequiredService<ConnectionConfig>().InitAsync(app.Configuration);
 await app.Services.GetRequiredService<BrandResolver>().InitAsync(app.Configuration);
+await app.Services.GetRequiredService<LandingService>().InitAsync();
 
 if (!app.Environment.IsDevelopment())
 {

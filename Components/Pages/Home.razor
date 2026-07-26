@@ -1,39 +1,37 @@
 @page "/"
-@inject BrandResolver Brands
+@layout BlankLayout
+@inject LandingService Landing
 @inject IHttpContextAccessor Http
 
-<PageTitle>@brand.Name</PageTitle>
+<PageTitle>@(page?.Name ?? "Home")</PageTitle>
 
-<div class="landing" style="--accent:@brand.Accent">
-    <div class="bg-orbs" aria-hidden="true">
-        <span class="orb o1"></span>
-        <span class="orb o2"></span>
-        <span class="orb o3"></span>
-    </div>
+@if (page is not null)
+{
+    <style>@((MarkupString)page.Css)</style>
+    @((MarkupString)page.Html)
 
-    <div class="landing-inner">
-        <a class="gilde-logo-link" href="@brand.ProjectsUrl" target="_blank" rel="noopener" title="gilde.org">
-            <img class="gilde-logo" src="gilde-logo.png" alt="gilde.org" />
-        </a>
+    @if (page.LoginEnabled)
+    {
+        <style>
+            .lp-login{position:fixed;top:1rem;right:1rem;z-index:9999;padding:.45rem .9rem;border-radius:999px;
+              background:#00000066;color:#fff;text-decoration:none;font:600 .82rem Inter,system-ui,sans-serif;
+              border:1px solid #ffffff33;backdrop-filter:blur(6px)}
+            .lp-login:hover{background:#000000aa}
+        </style>
+        <a class="lp-login" href="/login">Login</a>
+    }
 
-        <div class="badge">self-hosted · powered by Proxmox</div>
-        <h1 class="hero-title">@brand.Name</h1>
-        <p class="hero-tagline">@brand.Tagline</p>
-
-        <div class="cta-row">
-            <a class="btn btn-primary" href="@brand.ProjectsUrl" target="_blank" rel="noopener">
-                gilde.org ↗
-            </a>
-            <a class="btn btn-ghost" href="/login">@Loc.T("Login")</a>
-        </div>
-
-        <p class="hero-foot">Custom Software · Open Source · Hosting</p>
-    </div>
-</div>
+    @if (!string.IsNullOrWhiteSpace(page.Js))
+    {
+        <script>@((MarkupString)page.Js)</script>
+    }
+}
+else
+{
+    <p style="color:#888;font-family:sans-serif;padding:2rem">Keine Landing-Seite konfiguriert.</p>
+}
 
 @code {
-    private Brand brand = new();
-
-    protected override void OnInitialized()
-        => brand = Brands.Resolve(Http.HttpContext?.Request.Host.Value);
+    private LandingPage? page;
+    protected override void OnInitialized() => page = Landing.Resolve(Http.HttpContext?.Request.Host.Value);
 }
