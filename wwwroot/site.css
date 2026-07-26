@@ -344,6 +344,9 @@ textarea.code { width:100%; font-family:"JetBrains Mono", ui-monospace, monospac
 .monaco-box { height:360px; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
 .monaco-fill { height:100%; width:100%; }
 .monaco-box > div, .monaco-box .monaco-editor-container { height:100%; }
+/* Monaco's core layout CSS can be missing after SPA navigation, leaving .monaco-editor
+   position:static so its absolute content layers anchor to the viewport. Force the context. */
+.monaco-box .monaco-editor, .monaco-box .monaco-editor .overflow-guard { position: relative; }
 .hidden-file { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
 .muted.small, p.small { font-size:.8rem; }
 
