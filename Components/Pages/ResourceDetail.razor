@@ -202,7 +202,7 @@
                 </div>
                 <div class="monaco-box">
                     <StandaloneCodeEditor @key="editScript" @ref="_editor" ConstructionOptions="EditorOptions"
-                                          CssClass="monaco-fill" OnDidChangeModelContent="SyncContent" />
+                                          CssClass="monaco-fill" OnDidInit="EditorReady" OnDidChangeModelContent="SyncContent" />
                 </div>
                 <div style="margin-top:.6rem">
                     <button class="btn sm go" @onclick="SaveScript">@Loc.T("Speichern")</button>
@@ -365,14 +365,10 @@
 
     protected override void OnParametersSet() => Resolve();
 
-    private bool _relayout;
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task EditorReady()
     {
-        if (_relayout && _editor is not null)
-        {
-            _relayout = false;
-            try { await Task.Delay(50); await _editor.Layout(); } catch { }
-        }
+        if (_editor is null) return;
+        try { await Task.Delay(60); await _editor.Layout(); } catch { }
     }
 
     private void Resolve() => guest = Data.Guests.FirstOrDefault(g => g.VmId == VmId);
@@ -389,7 +385,6 @@
     {
         if (guest is null) return;
         editScript = new GuestScript { VmId = guest.VmId, SshHost = guest.Ip ?? "", SshUser = "root", SshPort = 22, Content = "#!/usr/bin/env bash\n" };
-        _relayout = true;
     }
 
     private void EditScript(GuestScript sc)
@@ -399,7 +394,6 @@
             Id = sc.Id, VmId = sc.VmId, Name = sc.Name, Content = sc.Content, ExecMode = sc.ExecMode,
             SshHost = sc.SshHost, SshPort = sc.SshPort, SshUser = sc.SshUser, SshAuth = sc.SshAuth, SshAuthIsKey = sc.SshAuthIsKey
         };
-        _relayout = true;
     }
 
     private async Task SyncContent()

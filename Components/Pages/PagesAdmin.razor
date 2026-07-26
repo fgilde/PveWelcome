@@ -81,7 +81,7 @@
                 </div>
                 <div class="monaco-box">
                     <StandaloneCodeEditor @key="tab" @ref="_editor" ConstructionOptions="EditorOptions"
-                                          CssClass="monaco-fill" OnDidChangeModelContent="Sync" />
+                                          CssClass="monaco-fill" OnDidInit="EditorReady" OnDidChangeModelContent="Sync" />
                 </div>
             </div>
             <div class="editor-col">
@@ -105,7 +105,6 @@
     private string tab = "html";
     private string preview = "";
     private StandaloneCodeEditor? _editor;
-    private bool _relayout;
 
     protected override async Task OnInitializedAsync() => pages = await Landing.GetAllAsync();
 
@@ -120,13 +119,10 @@
         ScrollBeyondLastLine = false,
     };
 
-    protected override async Task OnAfterRenderAsync(bool first)
+    private async Task EditorReady()
     {
-        if (_relayout && _editor is not null)
-        {
-            _relayout = false;
-            try { await Task.Delay(50); await _editor.Layout(); } catch { }
-        }
+        if (_editor is null) return;
+        try { await Task.Delay(60); await _editor.Layout(); } catch { }
     }
 
     private async Task Sync()
@@ -144,7 +140,6 @@
     {
         await Sync();
         tab = t;
-        _relayout = true;
     }
 
     private async Task Refresh()
@@ -160,7 +155,6 @@
             : LandingTemplates.NewFrom(key);
         showGallery = false;
         tab = "html";
-        _relayout = true;
         await Refresh();
     }
 
@@ -169,7 +163,6 @@
         edit = await Landing.GetAsync(id);
         showGallery = false;
         tab = "html";
-        _relayout = true;
         await Refresh();
     }
 

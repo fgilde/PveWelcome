@@ -25,6 +25,7 @@ public class LandingService(IServiceScopeFactory scopeFactory)
             var seed = LandingTemplates.NewFrom("classic");
             seed.Name = "Default";
             seed.IsDefault = true;
+            seed.LoginEnabled = false;
             db.LandingPages.Add(seed);
             await db.SaveChangesAsync();
         }

@@ -9,31 +9,47 @@ public static class LandingTemplates
 {
     public static readonly List<LandingTemplate> All =
     [
-        new("classic", "Classic (nksoft)", "Ruhiger Hero mit schwebenden Orbs — das aktuelle Design.",
+        new("classic", "Classic (nksoft)", "Das originale nksoft-Design: Hero mit schwebenden Orbs + gilde-Logo.",
             """
-            <div class="lp-classic">
-              <span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span>
-              <div class="inner">
+            <div class="landing">
+              <div class="bg-orbs"><span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span></div>
+              <div class="landing-inner">
+                <a class="gilde-logo-link" href="https://www.gilde.org" target="_blank" rel="noopener"><img class="gilde-logo" src="/gilde-logo.png" alt="gilde.org"></a>
                 <div class="badge">self-hosted · powered by Proxmox</div>
-                <h1>nksoft</h1>
-                <p class="tag">Custom Software · Open Source · Hosting</p>
-                <a class="cta" href="https://gilde.org" target="_blank" rel="noopener">gilde.org ↗</a>
+                <h1 class="hero-title">nksoft</h1>
+                <p class="hero-tagline">Software &amp; Infrastruktur.</p>
+                <div class="cta-row">
+                  <a class="btn btn-primary" href="https://www.gilde.org" target="_blank" rel="noopener">gilde.org ↗</a>
+                  <a class="btn btn-ghost" href="/login">Login</a>
+                </div>
+                <p class="hero-foot">Custom Software · Open Source · Hosting</p>
               </div>
             </div>
             """,
             """
-            .lp-classic{position:fixed;inset:0;display:grid;place-items:center;overflow:hidden;
-              background:radial-gradient(1200px 800px at 50% -10%,#241b45,#0b0912 60%);color:#eee;font-family:Inter,system-ui,sans-serif;text-align:center}
-            .lp-classic .inner{position:relative;z-index:2;padding:2rem}
-            .lp-classic .badge{display:inline-block;padding:.35rem .8rem;border:1px solid #ffffff22;border-radius:999px;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:#b6aede;margin-bottom:1.4rem}
-            .lp-classic h1{font-size:clamp(3rem,10vw,6rem);font-weight:800;margin:0;background:linear-gradient(90deg,#a78bfa,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
-            .lp-classic .tag{color:#c9c4e0;font-size:1.05rem;margin:.6rem 0 1.8rem}
-            .lp-classic .cta{display:inline-block;padding:.7rem 1.4rem;border-radius:10px;background:#8b5cf6;color:#fff;text-decoration:none;font-weight:700}
-            .lp-classic .orb{position:absolute;border-radius:50%;filter:blur(60px);opacity:.5;animation:float 14s ease-in-out infinite}
-            .lp-classic .o1{width:340px;height:340px;background:#7c3aed;top:-60px;left:-40px}
-            .lp-classic .o2{width:280px;height:280px;background:#2563eb;bottom:-60px;right:-30px;animation-delay:-4s}
-            .lp-classic .o3{width:220px;height:220px;background:#db2777;bottom:20%;left:20%;animation-delay:-8s}
-            @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-30px)}}
+            .landing{position:relative;min-height:100vh;overflow:hidden;display:grid;place-items:center;text-align:center;font-family:Inter,system-ui,sans-serif;color:#e7eaf0;
+              background:radial-gradient(1200px 600px at 50% -10%,color-mix(in srgb,#8b5cf6 22%,transparent),transparent 60%),#0b0d12}
+            .landing .bg-orbs{position:absolute;inset:0;filter:blur(80px);opacity:.55}
+            .landing .orb{position:absolute;border-radius:50%}
+            .landing .o1{width:380px;height:380px;background:#8b5cf6;top:8%;left:12%;animation:float 14s ease-in-out infinite}
+            .landing .o2{width:300px;height:300px;background:#06b6d4;bottom:6%;right:14%;animation:float 18s ease-in-out infinite reverse}
+            .landing .o3{width:260px;height:260px;background:#d946ef;top:40%;right:40%;animation:float 22s ease-in-out infinite}
+            @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-40px)}}
+            .landing .landing-inner{position:relative;z-index:1;padding:2rem}
+            .landing .gilde-logo-link{display:block;margin:0 auto 1rem;width:fit-content;transition:.25s}
+            .landing .gilde-logo-link:hover{transform:translateY(-3px) scale(1.02)}
+            .landing .gilde-logo{display:block;margin:0 auto;width:300px;height:300px;object-fit:contain;
+              -webkit-mask-image:radial-gradient(ellipse 62% 62% at 50% 48%,#000 56%,transparent 82%);mask-image:radial-gradient(ellipse 62% 62% at 50% 48%,#000 56%,transparent 82%);
+              filter:drop-shadow(0 0 34px color-mix(in srgb,#8b5cf6 55%,transparent))}
+            .landing .badge{display:inline-block;font-size:.8rem;letter-spacing:.05em;text-transform:uppercase;color:#8b93a7;border:1px solid #232838;border-radius:999px;padding:.35rem .9rem;margin-bottom:1.5rem}
+            .landing .hero-title{font-size:clamp(3rem,12vw,7rem);font-weight:800;margin:0;line-height:1;background:linear-gradient(180deg,#fff,color-mix(in srgb,#8b5cf6 60%,#fff));-webkit-background-clip:text;background-clip:text;color:transparent}
+            .landing .hero-tagline{font-size:1.25rem;color:#8b93a7;margin:1rem 0 2rem}
+            .landing .cta-row{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+            .landing .btn{display:inline-flex;align-items:center;gap:.4rem;border:1px solid #232838;background:#171b25;color:#e7eaf0;padding:.8rem 1.6rem;border-radius:10px;font-weight:600;font-size:1rem;cursor:pointer;text-decoration:none;transition:.15s}
+            .landing .btn:hover{border-color:#8b5cf6;transform:translateY(-1px)}
+            .landing .btn-primary{background:#8b5cf6;border-color:#8b5cf6;color:#fff}
+            .landing .btn-ghost{background:transparent}
+            .landing .hero-foot{margin-top:2.5rem;font-size:.85rem;color:#8b93a7}
             """,
             ""),
 

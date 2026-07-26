@@ -1,7 +1,6 @@
 @page "/admin/settings"
 @attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
-@inject BrandResolver Brands
 @inject ConnectionConfig Conn
 @inject PveDataService Data
 @inject MonitorService Monitors
@@ -63,41 +62,11 @@
         </div>
     </div>
 
-    <h2>@Loc.T("Welcome-Seiten")</h2>
-    <p class="muted">@Loc.T("Pro Domain: Name, Tagline, Akzentfarbe und der externe Link. Host") <code>default</code> @Loc.T("greift, wenn keine Domain passt.")</p>
-
-    @foreach (var b in brands)
-    {
-        <div class="settings-card">
-            <div class="settings-host"><span class="dot" style="background:@b.Accent"></span> @b.Host</div>
-            <div class="settings-grid">
-                <label>@Loc.T("Name")<input @bind="b.Name" /></label>
-                <label>Tagline<input @bind="b.Tagline" /></label>
-                <label>@Loc.T("Akzent")<input type="color" @bind="b.Accent" /></label>
-                <label>@Loc.T("Projekt-Link")<input @bind="b.ProjectsUrl" /></label>
-            </div>
-            <button class="btn sm go" @onclick="() => Save(b)">@Loc.T("Speichern")</button>
-        </div>
-    }
-
-    <h2>@Loc.T("Neue Domain")</h2>
-    <div class="add-brand">
-        <input placeholder="@Loc.T("host (z.B. foo.de)")" @bind="newHost" />
-        <input placeholder="@Loc.T("Name")" @bind="newName" />
-        <button class="btn sm" @onclick="Add">@Loc.T("Hinzufügen")</button>
-    </div>
-
-    @if (msg is not null)
-    {
-        <p class="muted">@msg</p>
-    }
+    <h2>@Loc.T("Landing-Seiten")</h2>
+    <p class="muted">@Loc.T("Öffentliche Seiten werden jetzt unter") <a href="/admin/pages">@Loc.T("Verwaltung → Seiten")</a> @Loc.T("gepflegt.")</p>
 </div>
 
 @code {
-    private List<BrandConfig> brands = [];
-    private string newHost = "";
-    private string newName = "";
-    private string? msg;
     private ConnectionSettings conn = new();
     private string? connMsg;
     private List<UptimeMonitor> monitors = [];
@@ -110,7 +79,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        brands = await Brands.GetAllAsync();
         monitors = await Monitors.ListAsync();
         var c = Conn.Current;
         conn = new ConnectionSettings
@@ -129,18 +97,4 @@
         connMsg = Loc.T("Gespeichert. Daten werden neu geladen.");
     }
 
-    private async Task Save(BrandConfig b)
-    {
-        await Brands.SaveAsync(b);
-        msg = $"'{b.Host}' gespeichert.";
-    }
-
-    private async Task Add()
-    {
-        if (string.IsNullOrWhiteSpace(newHost)) { msg = Loc.T("Host nötig."); return; }
-        await Brands.AddAsync(new BrandConfig { Host = newHost.Trim().ToLowerInvariant(), Name = string.IsNullOrWhiteSpace(newName) ? newHost : newName });
-        newHost = ""; newName = "";
-        brands = await Brands.GetAllAsync();
-        msg = Loc.T("Domain hinzugefügt.");
-    }
 }
