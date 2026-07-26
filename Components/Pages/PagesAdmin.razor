@@ -148,7 +148,10 @@
     private async Task Refresh()
     {
         await Sync();
-        preview = $"<!doctype html><meta charset=\"utf-8\"><style>{edit?.Css}</style>{edit?.Html}<script>{edit?.Js}</script>";
+        var login = edit?.LoginEnabled == true
+            ? "<style>.lp-login{position:fixed;top:1rem;right:1rem;z-index:9999;padding:.45rem .9rem;border-radius:999px;background:#00000066;color:#fff;text-decoration:none;font:600 .82rem Inter,system-ui,sans-serif;border:1px solid #ffffff33;backdrop-filter:blur(6px)}</style><a class=\"lp-login\" href=\"#\">Login</a>"
+            : "";
+        preview = $"<!doctype html><meta charset=\"utf-8\"><style>{edit?.Css}</style>{edit?.Html}{login}<script>{edit?.Js}</script>";
     }
 
     private async Task StartNew(string key, bool blank = false)
