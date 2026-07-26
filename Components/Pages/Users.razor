@@ -16,7 +16,7 @@
             <div class="user-row">
                 <span class="uname">@u.Username</span>
                 <span class="pill role">@u.Role</span>
-                <span class="muted">seit @u.CreatedAt.ToString("yyyy-MM-dd")</span>
+                <span class="muted">@Loc.T("seit") @u.CreatedAt.ToString("yyyy-MM-dd")</span>
                 <input class="pw-inline" type="password" placeholder="@Loc.T("neues Passwort")" @bind="pwInputs[u.Id]" />
                 <button class="btn xs" @onclick="() => SetPw(u.Id)">@Loc.T("Passwort setzen")</button>
                 @if (string.IsNullOrEmpty(u.TotpSecret))

@@ -17,7 +17,7 @@
         <div class="head-right">
             @if (Data.LastUpdated != default)
             {
-                <span class="muted stamp">@(Data.Refreshing ? Loc.T("aktualisiert…") : $"vor {Ago()}")</span>
+                <span class="muted stamp">@(Data.Refreshing ? Loc.T("aktualisiert…") : $"{Loc.T("vor")} {Ago()}")</span>
             }
             <button class="btn btn-ghost sm" @onclick="Refresh" disabled="@Data.Refreshing">↻ Refresh</button>
         </div>
@@ -70,7 +70,7 @@
                     <span class="label">@s.Name <small>@s.Type</small></span>
                     <span class="val">@Format.Bytes(s.Used) / @Format.Bytes(s.Total)</span>
                     <div class="bar @(s.Fraction > 0.85 ? "hot" : "")"><i style="width:@(Math.Min(100, s.Fraction*100))%"></i></div>
-                    <span class="sub muted">@Format.Bytes(s.Avail) frei · @Format.Pct(s.Fraction)</span>
+                    <span class="sub muted">@Format.Bytes(s.Avail) @Loc.T("frei") · @Format.Pct(s.Fraction)</span>
                 </div>
             }
         </section>

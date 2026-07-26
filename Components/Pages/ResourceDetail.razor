@@ -93,7 +93,7 @@
         }
 
         <div class="res-head">
-            <h2>Snapshots</h2>
+            <h2>@Loc.T("Snapshots")</h2>
             <button class="btn sm" disabled="@busy" @onclick="CreateSnap">＋ Snapshot</button>
         </div>
         @if (snapMsg is not null)
@@ -122,7 +122,7 @@
         }
 
         <div class="res-head">
-            <h2>Scripts</h2>
+            <h2>@Loc.T("Scripts")</h2>
             <button class="btn sm" disabled="@running" @onclick="NewScript">＋ Script</button>
         </div>
         @if (scriptMsg is not null)
@@ -131,7 +131,7 @@
         }
         @if (scripts.Count == 0 && editScript is null)
         {
-            <p class="muted">Keine Scripts. Lege eins an (z.B. „update-app", „restart", „logs anzeigen").</p>
+            <p class="muted">@Loc.T("Keine Scripts. Lege eins an (z.B. „update-app“, „restart“, „logs anzeigen“).")</p>
         }
         @if (scripts.Count > 0)
         {
@@ -162,8 +162,8 @@
                     <label>Name<input @bind="editScript.Name" placeholder="update-app" /></label>
                     <label>@Loc.T("Ausführung")
                         <select @bind="editScript.ExecMode">
-                            <option value="pve">PVE-Agent (VM, kein SSH)</option>
-                            <option value="ssh">SSH (Live-Output)</option>
+                            <option value="pve">@Loc.T("PVE-Agent (VM, kein SSH)")</option>
+                            <option value="ssh">@Loc.T("SSH (Live-Output)")</option>
                         </select>
                     </label>
                 </div>
@@ -194,10 +194,10 @@
                     <strong>Script (bash)</strong>
                     <span class="spacer"></span>
                     <InputFile OnChange="OnUpload" id="scriptupload" class="hidden-file" />
-                    <label for="scriptupload" class="btn xs">⬆ Datei hochladen</label>
+                    <label for="scriptupload" class="btn xs">⬆ @Loc.T("Datei hochladen")</label>
                     @if (editScript.ExecMode == "ssh")
                     {
-                        <button class="btn xs" @onclick="OpenBrowser">🔍 Server durchsuchen</button>
+                        <button class="btn xs" @onclick="OpenBrowser">🔍 @Loc.T("Server durchsuchen")</button>
                     }
                 </div>
                 <div class="monaco-box">
@@ -206,7 +206,7 @@
                 </div>
                 <div style="margin-top:.6rem">
                     <button class="btn sm go" @onclick="SaveScript">@Loc.T("Speichern")</button>
-                    <button class="btn sm" @onclick="CancelEdit">Abbrechen</button>
+                    <button class="btn sm" @onclick="CancelEdit">@Loc.T("Abbrechen")</button>
                 </div>
             </div>
 
@@ -222,7 +222,7 @@
                     </div>
                     @if (browseEntries.Count == 0)
                     {
-                        <p class="muted">Leer / nicht lesbar.</p>
+                        <p class="muted">@Loc.T("Leer / nicht lesbar.")</p>
                     }
                     <div class="snap-list" style="max-height:320px;overflow:auto">
                         @foreach (var en in browseEntries)
@@ -230,7 +230,7 @@
                             <button class="ai-hist" @onclick="() => Navigate(en)">@(en.IsDir ? "📁 " : "📄 ")@en.Name</button>
                         }
                     </div>
-                    <p class="muted">Datei anklicken = Inhalt in den Editor laden.</p>
+                    <p class="muted">@Loc.T("Datei anklicken = Inhalt in den Editor laden.")</p>
                 </div>
             }
         }
@@ -242,7 +242,7 @@
                     <strong>@runName</strong>
                     @if (running)
                     {
-                        <span class="pill warn">läuft…</span>
+                        <span class="pill warn">@Loc.T("läuft…")</span>
                     }
                     else if (runExit is not null)
                     {
@@ -409,7 +409,7 @@
     {
         if (editScript is null) return;
         await SyncContent();
-        if (string.IsNullOrWhiteSpace(editScript.Name)) { scriptMsg = "Name nötig."; return; }
+        if (string.IsNullOrWhiteSpace(editScript.Name)) { scriptMsg = Loc.T("Name nötig."); return; }
         try
         {
             await Scripts.SaveAsync(editScript);
@@ -418,7 +418,7 @@
             if (guest is not null) scripts = await Scripts.ListAsync(guest.VmId);
             scriptMsg = Loc.T("Gespeichert.");
         }
-        catch (Exception ex) { scriptMsg = "Fehler beim Speichern: " + ex.Message; }
+        catch (Exception ex) { scriptMsg = Loc.T("Fehler beim Speichern: ") + ex.Message; }
     }
 
     private void CancelEdit() { editScript = null; showBrowser = false; }
@@ -442,7 +442,7 @@
     private async Task OpenBrowser()
     {
         if (editScript is null) return;
-        if (string.IsNullOrWhiteSpace(editScript.SshHost)) { scriptMsg = "SSH-Host + Zugang zuerst ausfüllen."; return; }
+        if (string.IsNullOrWhiteSpace(editScript.SshHost)) { scriptMsg = Loc.T("SSH-Host + Zugang zuerst ausfüllen."); return; }
         showBrowser = true;
         browsePath = ".";
         await LoadBrowse();

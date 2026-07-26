@@ -52,7 +52,7 @@
                 <label>@Loc.T("Modell")<input @bind="cfg.ClaudeModel" placeholder="claude-sonnet-5" /></label>
             </div>
         }
-        <button class="btn sm go" @onclick="Save">Speichern</button>
+        <button class="btn sm go" @onclick="Save">@Loc.T("Speichern")</button>
         @if (cfgMsg is not null)
         {
             <span class="muted" style="margin-left:1rem">@cfgMsg</span>

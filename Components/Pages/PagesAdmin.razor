@@ -34,7 +34,7 @@
                     </button>
                 }
                 <button class="tpl" @onclick='() => StartNew("classic", blank:true)'>
-                    <b>Leer</b><span>Ganz von vorn (leeres HTML/CSS/JS).</span>
+                    <b>@Loc.T("Leer")</b><span>@Loc.T("Ganz von vorn (leeres HTML/CSS/JS).")</span>
                 </button>
             </div>
         </section>
@@ -47,9 +47,9 @@
             {
                 <div class="snap-row">
                     <span class="snap-name">@p.Name @if (p.IsDefault) { <span class="pill on">default</span> }</span>
-                    <span class="muted">@(string.IsNullOrWhiteSpace(p.Hosts) ? "— keine Domain —" : p.Hosts)</span>
+                    <span class="muted">@(string.IsNullOrWhiteSpace(p.Hosts) ? Loc.T("— keine Domain —") : p.Hosts)</span>
                     <span class="snap-btns">
-                        @if (!p.Active) { <span class="pill off">inaktiv</span> }
+                        @if (!p.Active) { <span class="pill off">@Loc.T("inaktiv")</span> }
                         <button class="btn xs" @onclick="() => Open(p.Id)">@Loc.T("Bearbeiten")</button>
                         <button class="btn xs danger" @onclick="() => Del(p)">@Loc.T("Löschen")</button>
                     </span>
@@ -62,11 +62,11 @@
     {
         <section class="settings-card">
             <div class="settings-grid">
-                <label>Name<input @bind="edit.Name" placeholder="Meine Seite" /></label>
-                <label>Domains (Komma-getrennt)<input @bind="edit.Hosts" placeholder="nksoft.de, www.nksoft.de" /></label>
-                <label class="chk">Login-Button zeigen<input type="checkbox" @bind="edit.LoginEnabled" /></label>
-                <label class="chk">Aktiv<input type="checkbox" @bind="edit.Active" /></label>
-                <label class="chk">Default (unbehandelte Domains)<input type="checkbox" @bind="edit.IsDefault" /></label>
+                <label>Name<input @bind="edit.Name" placeholder='@Loc.T("Meine Seite")' /></label>
+                <label>@Loc.T("Domains (Komma-getrennt)")<input @bind="edit.Hosts" placeholder="nksoft.de, www.nksoft.de" /></label>
+                <label class="chk">@Loc.T("Login-Button zeigen")<input type="checkbox" @bind="edit.LoginEnabled" /></label>
+                <label class="chk">@Loc.T("Aktiv")<input type="checkbox" @bind="edit.Active" /></label>
+                <label class="chk">@Loc.T("Default (unbehandelte Domains)")<input type="checkbox" @bind="edit.IsDefault" /></label>
             </div>
         </section>
 
@@ -77,7 +77,7 @@
                     <button class="tab @(tab == "css" ? "on" : "")" @onclick='() => SwitchTab("css")'>CSS</button>
                     <button class="tab @(tab == "js" ? "on" : "")" @onclick='() => SwitchTab("js")'>JS</button>
                     <span class="spacer"></span>
-                    <button class="btn xs" @onclick="Refresh">↻ Vorschau</button>
+                    <button class="btn xs" @onclick="Refresh">↻ @Loc.T("Vorschau")</button>
                 </div>
                 <div class="monaco-box">
                     <StandaloneCodeEditor @key="tab" @ref="_editor" ConstructionOptions="EditorOptions"
@@ -85,14 +85,14 @@
                 </div>
             </div>
             <div class="editor-col">
-                <div class="tabs"><strong>Vorschau</strong></div>
+                <div class="tabs"><strong>@Loc.T("Vorschau")</strong></div>
                 <iframe class="lp-preview" sandbox="allow-scripts" srcdoc="@preview"></iframe>
             </div>
         </div>
 
         <div style="margin-top:.8rem">
             <button class="btn sm go" @onclick="Save">@Loc.T("Speichern")</button>
-            <button class="btn sm" @onclick="() => { edit = null; }">Abbrechen</button>
+            <button class="btn sm" @onclick="() => { edit = null; }">@Loc.T("Abbrechen")</button>
         </div>
     }
 </div>
@@ -176,7 +176,7 @@
     {
         if (edit is null) return;
         await Sync();
-        if (string.IsNullOrWhiteSpace(edit.Name)) { msg = "Name nötig."; return; }
+        if (string.IsNullOrWhiteSpace(edit.Name)) { msg = Loc.T("Name nötig."); return; }
         await Landing.SaveAsync(edit);
         edit = null;
         pages = await Landing.GetAllAsync();
