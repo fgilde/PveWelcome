@@ -56,6 +56,18 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
             "\"LastOutput\" TEXT NULL, \"LastRunAt\" TEXT NULL, \"ExecMode\" TEXT NOT NULL DEFAULT 'pve');");
         try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"GuestScripts\" ADD COLUMN \"ExecMode\" TEXT NOT NULL DEFAULT 'pve';"); }
         catch { }
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS \"PhysicalMachines\" (" +
+            "\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_PhysicalMachines\" PRIMARY KEY AUTOINCREMENT, " +
+            "\"Name\" TEXT NOT NULL DEFAULT '', \"Host\" TEXT NOT NULL DEFAULT '', " +
+            "\"ProbePort\" INTEGER NOT NULL DEFAULT 3389, \"OsUser\" TEXT NOT NULL DEFAULT '', " +
+            "\"Mac\" TEXT NOT NULL DEFAULT '', \"MacAlt\" TEXT NOT NULL DEFAULT '', " +
+            "\"Broadcast\" TEXT NOT NULL DEFAULT '255.255.255.255', \"WolPort\" INTEGER NOT NULL DEFAULT 9, " +
+            "\"JumpHost\" TEXT NOT NULL DEFAULT '', \"JumpPort\" INTEGER NOT NULL DEFAULT 22, " +
+            "\"JumpUser\" TEXT NOT NULL DEFAULT 'root', \"JumpAuth\" TEXT NOT NULL DEFAULT '', " +
+            "\"JumpAuthIsKey\" INTEGER NOT NULL DEFAULT 1, \"ShutdownCommand\" TEXT NOT NULL DEFAULT '', " +
+            "\"GuacUrl\" TEXT NOT NULL DEFAULT '', \"PublicHost\" TEXT NOT NULL DEFAULT '', " +
+            "\"Enabled\" INTEGER NOT NULL DEFAULT 1);");
 
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is null)

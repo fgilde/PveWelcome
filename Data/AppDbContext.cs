@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AiRun> AiRuns => Set<AiRun>();
     public DbSet<GuestScript> GuestScripts => Set<GuestScript>();
     public DbSet<LandingPage> LandingPages => Set<LandingPage>();
+    public DbSet<PhysicalMachine> PhysicalMachines => Set<PhysicalMachine>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

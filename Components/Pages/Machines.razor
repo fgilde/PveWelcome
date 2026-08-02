@@ -1,0 +1,205 @@
+@page "/pc"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@implements IDisposable
+@using PveWelcome.Models
+@inject PhysicalMachineService Svc
+
+<PageTitle>@Loc.T("Rechner")</PageTitle>
+
+<TopBar />
+
+<div class="page-wrap">
+    <h1>@Loc.T("Rechner")</h1>
+    <p class="muted">@Loc.T("Physische Rechner im LAN — an- und ausschalten und verbinden.")</p>
+
+    @if (machines.Count == 0)
+    {
+        <p class="muted">@Loc.T("Noch kein Rechner angelegt.")</p>
+    }
+
+    @foreach (var m in machines)
+    {
+        var state = State(m);
+        <div class="settings-card">
+            <h2 style="display:flex;align-items:center;gap:.6rem;margin-top:0">
+                <span title="@state" style="width:.7rem;height:.7rem;border-radius:50%;display:inline-block;background:@DotColor(m)"></span>
+                @m.Name
+                <span class="muted" style="font-weight:400;font-size:.9rem">@m.Host · @state</span>
+            </h2>
+
+            @if (messages.TryGetValue(m.Id, out var msg) && !string.IsNullOrEmpty(msg))
+            {
+                <p class="muted">@msg</p>
+            }
+
+            <button class="btn sm go" disabled="@(busy.Contains(m.Id) || online.GetValueOrDefault(m.Id))"
+                    @onclick="() => Wake(m)">@Loc.T("Einschalten")</button>
+            <button class="btn sm danger" disabled="@(busy.Contains(m.Id) || !online.GetValueOrDefault(m.Id))"
+                    @onclick="() => Shutdown(m)">@Loc.T("Herunterfahren")</button>
+
+            @if (!string.IsNullOrWhiteSpace(m.GuacUrl))
+            {
+                <a class="btn sm" href="@m.GuacUrl" target="_blank" rel="noopener">@Loc.T("Im Browser verbinden")</a>
+            }
+            <a class="btn sm" href="/pc.rdp?id=@m.Id">@Loc.T(".rdp herunterladen")</a>
+        </div>
+    }
+
+    <AuthorizeView Roles="Admin">
+        <h2>@Loc.T("Rechner verwalten")</h2>
+        @foreach (var m in machines)
+        {
+            <div class="settings-card">
+                @MachineForm(m)
+                <button class="btn sm go" @onclick="() => Save(m)">@Loc.T("Speichern")</button>
+                <button class="btn sm danger" @onclick="() => Delete(m)">@Loc.T("Löschen")</button>
+            </div>
+        }
+        <h2>@Loc.T("Neuer Rechner")</h2>
+        <div class="settings-card">
+            @MachineForm(nw)
+            <button class="btn sm go" @onclick="AddNew">@Loc.T("Anlegen")</button>
+        </div>
+    </AuthorizeView>
+</div>
+
+@code {
+    private RenderFragment<PhysicalMachine> MachineForm => m =>@<div class="settings-grid">
+        <label>@Loc.T("Name")<input @bind="m.Name" placeholder="Arbeitsrechner" /></label>
+        <label>@Loc.T("Adresse")<input @bind="m.Host" placeholder="192.168.178.54" /></label>
+        <label>@Loc.T("Probe-Port")<input type="number" @bind="m.ProbePort" /></label>
+        <label>@Loc.T("Benutzer am Rechner")<input @bind="m.OsUser" placeholder="User" /></label>
+        <label>@Loc.T("MAC (fest eingebrannt)")<input @bind="m.Mac" placeholder="74:56:3C:FF:5F:8F" /></label>
+        <label>@Loc.T("MAC (Software-Override)")<input @bind="m.MacAlt" placeholder="0E:82:D7:CD:DA:36" /></label>
+        <label>@Loc.T("Broadcast")<input @bind="m.Broadcast" /></label>
+        <label>@Loc.T("WoL-Port")<input type="number" @bind="m.WolPort" /></label>
+        <label>@Loc.T("Jump-Host")<input @bind="m.JumpHost" placeholder="192.168.178.126" /></label>
+        <label>@Loc.T("Jump-Port")<input type="number" @bind="m.JumpPort" /></label>
+        <label>@Loc.T("Jump-Benutzer")<input @bind="m.JumpUser" /></label>
+        <label class="chk">@Loc.T("Jump-Auth ist Key")<input type="checkbox" @bind="m.JumpAuthIsKey" /></label>
+        <label style="grid-column:1/-1">@Loc.T("Jump-Auth (Key oder Passwort)")
+            <textarea rows="4" @bind="m.JumpAuth" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
+        <label style="grid-column:1/-1">@Loc.T("Shutdown-Befehl (läuft auf dem Jump-Host, {host} und {user} werden ersetzt)")
+            <input @bind="m.ShutdownCommand" /></label>
+        <label style="grid-column:1/-1">@Loc.T("Browser-RDP-URL")<input @bind="m.GuacUrl" placeholder="https://rdp.nksoft.de/#/client/…" /></label>
+        <label>@Loc.T("Öffentlicher Host")<input @bind="m.PublicHost" placeholder="pc.nksoft.de" /></label>
+        <label class="chk">@Loc.T("Aktiv")<input type="checkbox" @bind="m.Enabled" /></label>
+    </div>;
+
+    private List<PhysicalMachine> machines = new();
+    private readonly Dictionary<int, bool> online = new();
+    private readonly Dictionary<int, string> messages = new();
+    private readonly HashSet<int> busy = new();
+    private readonly HashSet<int> waking = new();
+    private PhysicalMachine nw = NewTemplate();
+    private Timer? timer;
+    private readonly CancellationTokenSource cts = new();
+
+    private static PhysicalMachine NewTemplate() => new()
+    {
+        Broadcast = "255.255.255.255",
+        ShutdownCommand = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i /root/.ssh/id_pc {user}@{host} \"shutdown /s /t 0\"",
+    };
+
+    private string State(PhysicalMachine m) =>
+        waking.Contains(m.Id) ? Loc.T("startet…")
+        : online.GetValueOrDefault(m.Id) ? Loc.T("online")
+        : Loc.T("offline");
+
+    private string DotColor(PhysicalMachine m) =>
+        waking.Contains(m.Id) ? "#e0a800" : online.GetValueOrDefault(m.Id) ? "#2ea043" : "#6e7681";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+        timer = new Timer(async _ => await Refresh(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private async Task Reload()
+    {
+        machines = await Svc.ListAsync();
+        await Refresh();
+    }
+
+    private async Task Refresh()
+    {
+        foreach (var m in machines)
+        {
+            var up = await PhysicalMachineService.IsOnlineAsync(m, cts.Token);
+            online[m.Id] = up;
+            if (up) waking.Remove(m.Id);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Wake(PhysicalMachine m)
+    {
+        busy.Add(m.Id);
+        messages[m.Id] = Loc.T("Magic Packet wird gesendet…");
+        var result = await Svc.WakeAsync(m, cts.Token);
+        busy.Remove(m.Id);
+        waking.Add(m.Id);
+        messages[m.Id] = result;
+        _ = WaitForBoot(m);
+    }
+
+    /// Give up after two minutes so the card cannot sit on "startet…" forever.
+    private async Task WaitForBoot(PhysicalMachine m)
+    {
+        var deadline = DateTime.UtcNow.AddMinutes(2);
+        while (DateTime.UtcNow < deadline && !cts.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
+            if (await PhysicalMachineService.IsOnlineAsync(m, cts.Token))
+            {
+                online[m.Id] = true;
+                waking.Remove(m.Id);
+                messages[m.Id] = Loc.T("Rechner ist online.");
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+        if (waking.Remove(m.Id))
+        {
+            messages[m.Id] = Loc.T("Aufwecken fehlgeschlagen — kein Lebenszeichen nach 2 Minuten. BIOS-Einstellung „ErP Ready“ prüfen.");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task Shutdown(PhysicalMachine m)
+    {
+        busy.Add(m.Id);
+        messages[m.Id] = Loc.T("Fahre herunter…");
+        messages[m.Id] = await Svc.ShutdownAsync(m, cts.Token);
+        busy.Remove(m.Id);
+        await Refresh();
+    }
+
+    private async Task Save(PhysicalMachine m)
+    {
+        await Svc.SaveAsync(m);
+        messages[m.Id] = Loc.T("Gespeichert.");
+        await Reload();
+    }
+
+    private async Task Delete(PhysicalMachine m)
+    {
+        await Svc.DeleteAsync(m.Id);
+        await Reload();
+    }
+
+    private async Task AddNew()
+    {
+        await Svc.SaveAsync(nw);
+        nw = NewTemplate();
+        await Reload();
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+        cts.Cancel();
+        cts.Dispose();
+    }
+}

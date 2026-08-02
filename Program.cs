@@ -11,6 +11,13 @@ using PveWelcome.Data;
 using PveWelcome.Models;
 using PveWelcome.Services;
 
+// Offline self-check for the pure logic that has no HTTP surface: dotnet run -- --selfcheck
+if (args.Contains("--selfcheck"))
+{
+    PhysicalMachineService.SelfCheck();
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
@@ -29,6 +36,7 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AiService>();
 builder.Services.AddScoped<ScriptService>();
 builder.Services.AddScoped<MonitorService>();
+builder.Services.AddScoped<PhysicalMachineService>();
 builder.Services.AddSingleton<LoginThrottle>();
 
 builder.Services.AddSingleton<ConnectionConfig>();
@@ -122,6 +130,16 @@ app.MapGet("/set-lang", async (string c, string? r, PveWelcome.Services.Connecti
     await conn.SetLanguageAsync(c);
     return Results.Redirect(string.IsNullOrEmpty(r) ? "/" : r);
 });
+
+app.MapGet("/pc.rdp", async (int id, PhysicalMachineService machines) =>
+{
+    var m = await machines.GetAsync(id);
+    if (m is null) return Results.NotFound();
+    var name = string.Concat((string.IsNullOrWhiteSpace(m.Name) ? "pc" : m.Name)
+        .Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+    return Results.File(System.Text.Encoding.UTF8.GetBytes(PhysicalMachineService.RdpFile(m)),
+        "application/x-rdp", $"{name}.rdp");
+}).RequireAuthorization();
 
 app.MapPost("/auth/login", async (HttpContext ctx, UserService users, LoginThrottle throttle,
     [FromForm] string username, [FromForm] string password, [FromForm] string? totp, [FromForm] string? returnUrl) =>
