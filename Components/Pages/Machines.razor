@@ -13,19 +13,18 @@
     <h1>@Loc.T("Rechner")</h1>
     <p class="muted">@Loc.T("Physische Rechner im LAN — an- und ausschalten und verbinden.")</p>
 
-    @if (machines.Count == 0)
+    @if (machines.Count == 0 && draft is null)
     {
         <p class="muted">@Loc.T("Noch kein Rechner angelegt.")</p>
     }
 
     @foreach (var m in machines)
     {
-        var state = State(m);
         <div class="settings-card">
             <h2 style="display:flex;align-items:center;gap:.6rem;margin-top:0">
-                <span title="@state" style="width:.7rem;height:.7rem;border-radius:50%;display:inline-block;background:@DotColor(m)"></span>
+                <span title="@State(m)" style="width:.7rem;height:.7rem;border-radius:50%;display:inline-block;background:@DotColor(m)"></span>
                 @m.Name
-                <span class="muted" style="font-weight:400;font-size:.9rem">@m.Host · @state</span>
+                <span class="muted" style="font-weight:400;font-size:.9rem">@m.Host · @State(m)</span>
             </h2>
 
             @if (messages.TryGetValue(m.Id, out var msg) && !string.IsNullOrEmpty(msg))
@@ -38,52 +37,86 @@
             <button class="btn sm danger" disabled="@(busy.Contains(m.Id) || !online.GetValueOrDefault(m.Id))"
                     @onclick="() => Shutdown(m)">@Loc.T("Herunterfahren")</button>
 
-            @if (!string.IsNullOrWhiteSpace(m.GuacUrl))
+            @{ var guac = PhysicalMachineService.GuacUrl(m); }
+            @if (guac is not null)
             {
-                <a class="btn sm" href="@m.GuacUrl" target="_blank" rel="noopener">@Loc.T("Im Browser verbinden")</a>
+                <a class="btn sm" href="@guac" target="_blank" rel="noopener">@Loc.T("Im Browser verbinden")</a>
             }
             <a class="btn sm" href="/pc.rdp?id=@m.Id">@Loc.T(".rdp herunterladen")</a>
+
+            <AuthorizeView Roles="Admin" Context="admin">
+                <button class="btn sm" @onclick="() => ToggleConsole(m)">@Loc.T("Terminal")</button>
+                <button class="btn sm" @onclick="() => Edit(m)">@Loc.T("Bearbeiten")</button>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="Admin" Context="term">
+                @if (consoleOpen.Contains(m.Id))
+                {
+                    <div style="margin-top:.8rem">
+                        <div style="display:flex;gap:.4rem">
+                            <input style="flex:1;font-family:monospace" placeholder="@Loc.T("Befehl auf dem Rechner ausführen…")"
+                                   @bind="consoleCmd" @bind:event="oninput"
+                                   @onkeydown="@(e => { if (e.Key == "Enter") _ = RunCommand(m); })" />
+                            <button class="btn sm go" disabled="@busyConsole.Contains(m.Id)"
+                                    @onclick="() => RunCommand(m)">@Loc.T("Ausführen")</button>
+                        </div>
+                        @if (consoleOut.TryGetValue(m.Id, out var outp) && !string.IsNullOrEmpty(outp))
+                        {
+                            <pre style="margin-top:.5rem;max-height:20rem;overflow:auto;white-space:pre-wrap">@outp</pre>
+                        }
+                        <p class="muted" style="font-size:.85rem">
+                            @Loc.T("Einzelne Befehle, keine interaktive Sitzung — läuft über den Jump-Host.")
+                        </p>
+                    </div>
+                }
+            </AuthorizeView>
         </div>
     }
 
     <AuthorizeView Roles="Admin">
-        <h2>@Loc.T("Rechner verwalten")</h2>
-        @foreach (var m in machines)
+        @if (draft is not null)
         {
             <div class="settings-card">
-                @MachineForm(m)
-                <button class="btn sm go" @onclick="() => Save(m)">@Loc.T("Speichern")</button>
-                <button class="btn sm danger" @onclick="() => Delete(m)">@Loc.T("Löschen")</button>
+                <h2 style="margin-top:0">@(draft.Id == 0 ? Loc.T("Neuer Rechner") : Loc.T("{0} bearbeiten", draft.Name))</h2>
+                @MachineForm(draft)
+                <button class="btn sm go" @onclick="SaveDraft">@Loc.T("Speichern")</button>
+                <button class="btn sm" @onclick="() => draft = null">@Loc.T("Abbrechen")</button>
+                @if (draft.Id != 0)
+                {
+                    <button class="btn sm danger" @onclick="DeleteDraft">@Loc.T("Löschen")</button>
+                }
             </div>
         }
-        <h2>@Loc.T("Neuer Rechner")</h2>
-        <div class="settings-card">
-            @MachineForm(nw)
-            <button class="btn sm go" @onclick="AddNew">@Loc.T("Anlegen")</button>
-        </div>
+        else
+        {
+            <button class="btn sm go" @onclick="NewMachine">@Loc.T("Neuer Rechner")</button>
+        }
     </AuthorizeView>
 </div>
 
 @code {
     private RenderFragment<PhysicalMachine> MachineForm => m =>@<div class="settings-grid">
         <label>@Loc.T("Name")<input @bind="m.Name" placeholder="Arbeitsrechner" /></label>
-        <label>@Loc.T("Adresse")<input @bind="m.Host" placeholder="192.168.178.54" /></label>
+        <label>@Loc.T("Adresse")<input @bind="m.Host" placeholder="10.0.0.5" /></label>
         <label>@Loc.T("Probe-Port")<input type="number" @bind="m.ProbePort" /></label>
-        <label>@Loc.T("Benutzer am Rechner")<input @bind="m.OsUser" placeholder="User" /></label>
-        <label>@Loc.T("MAC (fest eingebrannt)")<input @bind="m.Mac" placeholder="74:56:3C:FF:5F:8F" /></label>
-        <label>@Loc.T("MAC (Software-Override)")<input @bind="m.MacAlt" placeholder="0E:82:D7:CD:DA:36" /></label>
+        <label>@Loc.T("Benutzer am Rechner")<input @bind="m.OsUser" /></label>
+        <label>@Loc.T("MAC (fest eingebrannt)")<input @bind="m.Mac" placeholder="aa:bb:cc:dd:ee:ff" /></label>
+        <label>@Loc.T("MAC (Software-Override)")<input @bind="m.MacAlt" /></label>
         <label>@Loc.T("Broadcast")<input @bind="m.Broadcast" /></label>
         <label>@Loc.T("WoL-Port")<input type="number" @bind="m.WolPort" /></label>
-        <label>@Loc.T("Jump-Host")<input @bind="m.JumpHost" placeholder="192.168.178.126" /></label>
+        <label>@Loc.T("Jump-Host")<input @bind="m.JumpHost" /></label>
         <label>@Loc.T("Jump-Port")<input type="number" @bind="m.JumpPort" /></label>
         <label>@Loc.T("Jump-Benutzer")<input @bind="m.JumpUser" /></label>
         <label class="chk">@Loc.T("Jump-Auth ist Key")<input type="checkbox" @bind="m.JumpAuthIsKey" /></label>
         <label style="grid-column:1/-1">@Loc.T("Jump-Auth (Key oder Passwort)")
             <textarea rows="4" @bind="m.JumpAuth" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
-        <label style="grid-column:1/-1">@Loc.T("Shutdown-Befehl (läuft auf dem Jump-Host, {host} und {user} werden ersetzt)")
+        <label style="grid-column:1/-1">@Loc.T("SSH-Befehlsmuster (auf dem Jump-Host; {host}, {user}, {cmd} werden ersetzt)")
+            <input @bind="m.SshCommandTemplate" /></label>
+        <label style="grid-column:1/-1">@Loc.T("Shutdown-Befehl (läuft auf dem Rechner)")
             <input @bind="m.ShutdownCommand" /></label>
-        <label style="grid-column:1/-1">@Loc.T("Browser-RDP-URL")<input @bind="m.GuacUrl" placeholder="https://rdp.nksoft.de/#/client/…" /></label>
-        <label>@Loc.T("Öffentlicher Host")<input @bind="m.PublicHost" placeholder="pc.nksoft.de" /></label>
+        <label>@Loc.T("Guacamole-Domain")<input @bind="m.GuacHost" placeholder="rdp.example.com" /></label>
+        <label>@Loc.T("Guacamole-Verbindungs-ID")<input @bind="m.GuacConnectionId" placeholder="1" /></label>
+        <label>@Loc.T("Guacamole-Datenquelle")<input @bind="m.GuacDataSource" placeholder="postgresql" /></label>
         <label class="chk">@Loc.T("Aktiv")<input type="checkbox" @bind="m.Enabled" /></label>
     </div>;
 
@@ -92,15 +125,13 @@
     private readonly Dictionary<int, string> messages = new();
     private readonly HashSet<int> busy = new();
     private readonly HashSet<int> waking = new();
-    private PhysicalMachine nw = NewTemplate();
+    private readonly HashSet<int> consoleOpen = new();
+    private readonly HashSet<int> busyConsole = new();
+    private readonly Dictionary<int, string> consoleOut = new();
+    private string consoleCmd = "";
+    private PhysicalMachine? draft;
     private Timer? timer;
     private readonly CancellationTokenSource cts = new();
-
-    private static PhysicalMachine NewTemplate() => new()
-    {
-        Broadcast = "255.255.255.255",
-        ShutdownCommand = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no -i /root/.ssh/id_pc {user}@{host} \"shutdown /s /t 0\"",
-    };
 
     private string State(PhysicalMachine m) =>
         waking.Contains(m.Id) ? Loc.T("startet…")
@@ -176,23 +207,51 @@
         await Refresh();
     }
 
-    private async Task Save(PhysicalMachine m)
+    private void ToggleConsole(PhysicalMachine m)
     {
-        await Svc.SaveAsync(m);
-        messages[m.Id] = Loc.T("Gespeichert.");
+        if (!consoleOpen.Remove(m.Id)) consoleOpen.Add(m.Id);
+    }
+
+    private async Task RunCommand(PhysicalMachine m)
+    {
+        var cmd = consoleCmd.Trim();
+        if (cmd.Length == 0) return;
+        busyConsole.Add(m.Id);
+        consoleOut[m.Id] = $"> {cmd}\n";
+        await InvokeAsync(StateHasChanged);
+        consoleOut[m.Id] += await Svc.RunRemoteAsync(m, cmd, cts.Token);
+        busyConsole.Remove(m.Id);
+        consoleCmd = "";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void NewMachine() => draft = new PhysicalMachine();
+
+    /// Edit a detached copy so "Abbrechen" really discards.
+    private void Edit(PhysicalMachine m) => draft = new PhysicalMachine
+    {
+        Id = m.Id, Name = m.Name, Host = m.Host, ProbePort = m.ProbePort, OsUser = m.OsUser,
+        Mac = m.Mac, MacAlt = m.MacAlt, Broadcast = m.Broadcast, WolPort = m.WolPort,
+        JumpHost = m.JumpHost, JumpPort = m.JumpPort, JumpUser = m.JumpUser,
+        JumpAuth = m.JumpAuth, JumpAuthIsKey = m.JumpAuthIsKey,
+        SshCommandTemplate = m.SshCommandTemplate, ShutdownCommand = m.ShutdownCommand,
+        GuacHost = m.GuacHost, GuacConnectionId = m.GuacConnectionId, GuacDataSource = m.GuacDataSource,
+        Enabled = m.Enabled,
+    };
+
+    private async Task SaveDraft()
+    {
+        if (draft is null) return;
+        await Svc.SaveAsync(draft);
+        draft = null;
         await Reload();
     }
 
-    private async Task Delete(PhysicalMachine m)
+    private async Task DeleteDraft()
     {
-        await Svc.DeleteAsync(m.Id);
-        await Reload();
-    }
-
-    private async Task AddNew()
-    {
-        await Svc.SaveAsync(nw);
-        nw = NewTemplate();
+        if (draft is null || draft.Id == 0) return;
+        await Svc.DeleteAsync(draft.Id);
+        draft = null;
         await Reload();
     }
 

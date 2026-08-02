@@ -66,8 +66,17 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
             "\"JumpHost\" TEXT NOT NULL DEFAULT '', \"JumpPort\" INTEGER NOT NULL DEFAULT 22, " +
             "\"JumpUser\" TEXT NOT NULL DEFAULT 'root', \"JumpAuth\" TEXT NOT NULL DEFAULT '', " +
             "\"JumpAuthIsKey\" INTEGER NOT NULL DEFAULT 1, \"ShutdownCommand\" TEXT NOT NULL DEFAULT '', " +
-            "\"GuacUrl\" TEXT NOT NULL DEFAULT '', \"PublicHost\" TEXT NOT NULL DEFAULT '', " +
+            "\"SshCommandTemplate\" TEXT NOT NULL DEFAULT '', " +
+            "\"GuacHost\" TEXT NOT NULL DEFAULT '', \"GuacConnectionId\" TEXT NOT NULL DEFAULT '', " +
+            "\"GuacDataSource\" TEXT NOT NULL DEFAULT 'postgresql', " +
             "\"Enabled\" INTEGER NOT NULL DEFAULT 1);");
+        foreach (var (col, def) in new[]
+                 {
+                     ("SshCommandTemplate", "''"), ("GuacHost", "''"),
+                     ("GuacConnectionId", "''"), ("GuacDataSource", "'postgresql'"),
+                 })
+            try { await db.Database.ExecuteSqlRawAsync($"ALTER TABLE \"PhysicalMachines\" ADD COLUMN \"{col}\" TEXT NOT NULL DEFAULT {def};"); }
+            catch { }
 
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is null)

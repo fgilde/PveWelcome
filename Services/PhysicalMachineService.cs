@@ -80,12 +80,37 @@ public class PhysicalMachineService(AppDbContext db, ILogger<PhysicalMachineServ
         return await RunOnJumpAsync(m, $"echo {Convert.ToBase64String(Encoding.UTF8.GetBytes(sb.ToString()))} | base64 -d | python3 -", ct);
     }
 
-    /// Run the configured shutdown command on the jump host, which reaches the machine over SSH.
-    public async Task<string> ShutdownAsync(PhysicalMachine m, CancellationToken ct = default)
+    /// Run the configured shutdown command on the machine.
+    public Task<string> ShutdownAsync(PhysicalMachine m, CancellationToken ct = default) =>
+        string.IsNullOrWhiteSpace(m.ShutdownCommand)
+            ? Task.FromResult(Loc.T("Kein Shutdown-Befehl hinterlegt."))
+            : RunRemoteAsync(m, m.ShutdownCommand, ct);
+
+    /// Run an arbitrary command ON the machine, tunnelled through the jump host via SshCommandTemplate.
+    public Task<string> RunRemoteAsync(PhysicalMachine m, string command, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(m.ShutdownCommand)) return Loc.T("Kein Shutdown-Befehl hinterlegt.");
-        var cmd = m.ShutdownCommand.Replace("{host}", m.Host).Replace("{user}", m.OsUser);
-        return await RunOnJumpAsync(m, cmd, ct);
+        if (string.IsNullOrWhiteSpace(command)) return Task.FromResult("");
+        if (string.IsNullOrWhiteSpace(m.SshCommandTemplate))
+            return Task.FromResult(Loc.T("Kein SSH-Befehlsmuster hinterlegt."));
+        var full = m.SshCommandTemplate
+            .Replace("{host}", m.Host)
+            .Replace("{user}", m.OsUser)
+            .Replace("{cmd}", ShellQuote(command));
+        return RunOnJumpAsync(m, full, ct);
+    }
+
+    /// POSIX single-quoting for the jump host's shell, so the payload survives verbatim.
+    private static string ShellQuote(string s) => "'" + s.Replace("'", "'\\''") + "'";
+
+    /// Deep link into the Guacamole client for this connection, or null when not configured.
+    public static string? GuacUrl(PhysicalMachine m)
+    {
+        if (string.IsNullOrWhiteSpace(m.GuacHost) || string.IsNullOrWhiteSpace(m.GuacConnectionId)) return null;
+        var ds = string.IsNullOrWhiteSpace(m.GuacDataSource) ? "postgresql" : m.GuacDataSource;
+        // Guacamole identifies a client as base64("<id>\0<type>\0<datasource>"); type 'c' = connection.
+        var id = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{m.GuacConnectionId}\0c\0{ds}"));
+        var host = m.GuacHost.Contains("://") ? m.GuacHost.TrimEnd('/') : "https://" + m.GuacHost.TrimEnd('/');
+        return $"{host}/#/client/{id}";
     }
 
     private Task<string> RunOnJumpAsync(PhysicalMachine m, string command, CancellationToken ct) => Task.Run(() =>
@@ -145,9 +170,23 @@ public class PhysicalMachineService(AppDbContext db, ILogger<PhysicalMachineServ
         try { MagicPacket("74:56:3C"); throw new Exception("Zu kurze MAC hätte werfen müssen"); }
         catch (ArgumentException) { }
 
-        var rdp = RdpFile(new PhysicalMachine { Host = "192.168.178.54", ProbePort = 3389, OsUser = "User" });
-        if (!rdp.Contains("full address:s:192.168.178.54:3389")) throw new Exception("RDP-Adresszeile fehlt");
-        if (!rdp.Contains("username:s:User")) throw new Exception("RDP-Benutzerzeile fehlt");
+        var rdp = RdpFile(new PhysicalMachine { Host = "10.0.0.5", ProbePort = 3389, OsUser = "tester" });
+        if (!rdp.Contains("full address:s:10.0.0.5:3389")) throw new Exception("RDP-Adresszeile fehlt");
+        if (!rdp.Contains("username:s:tester")) throw new Exception("RDP-Benutzerzeile fehlt");
+
+        // Guacamole deep link: base64("<id>\0c\0<datasource>"), the scheme filled in when absent.
+        var g = new PhysicalMachine { GuacHost = "rdp.example.com", GuacConnectionId = "1" };
+        if (GuacUrl(g) != "https://rdp.example.com/#/client/MQBjAHBvc3RncmVzcWw=")
+            throw new Exception($"Guacamole-URL falsch: {GuacUrl(g)}");
+        g.GuacHost = "http://rdp.example.com/";
+        if (GuacUrl(g) != "http://rdp.example.com/#/client/MQBjAHBvc3RncmVzcWw=")
+            throw new Exception($"Schema/Slash nicht respektiert: {GuacUrl(g)}");
+        if (GuacUrl(new PhysicalMachine { GuacHost = "rdp.example.com" }) is not null)
+            throw new Exception("Ohne Verbindungs-ID darf keine URL entstehen");
+
+        // A quote in the payload must not break out of the jump host's shell quoting.
+        if (ShellQuote("shutdown /s") != "'shutdown /s'") throw new Exception("Quoting falsch");
+        if (ShellQuote("echo 'hi'") != "'echo '\\''hi'\\'''") throw new Exception("Escaping von ' falsch");
 
         Console.WriteLine("PhysicalMachineService self-check OK");
     }
