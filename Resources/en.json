@@ -309,5 +309,7 @@
   "Kein Jump-Host konfiguriert.": "No jump host configured.",
   "OK": "OK",
   "Fehler (exit {0}): {1}": "Error (exit {0}): {1}",
+  "Alle Monitore": "All monitors",
+  "Ein Monitor": "Single monitor",
   "Fehler: {0}": "Error: {0}"
 }

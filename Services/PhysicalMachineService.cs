@@ -143,16 +143,27 @@ public class PhysicalMachineService(AppDbContext db, ILogger<PhysicalMachineServ
     }, ct);
 
     /// A .rdp file the browser can hand to the local mstsc / Remote Desktop client.
-    public static string RdpFile(PhysicalMachine m)
+    /// multiMonitor toggles "use all monitors for the remote session".
+    public static string RdpFile(PhysicalMachine m, bool multiMonitor = false)
     {
         var sb = new StringBuilder();
         sb.Append($"full address:s:{m.Host}:{m.ProbePort}\r\n");
         if (!string.IsNullOrWhiteSpace(m.OsUser)) sb.Append($"username:s:{m.OsUser}\r\n");
         sb.Append("prompt for credentials:i:1\r\n");
         sb.Append("screen mode id:i:2\r\n");
-        sb.Append("audiomode:i:0\r\n");
-        sb.Append("redirectclipboard:i:1\r\n");
+        sb.Append($"use multimon:i:{(multiMonitor ? 1 : 0)}\r\n");
         sb.Append("authentication level:i:2\r\n");
+        // Remote audio: play on this computer + record from this computer.
+        sb.Append("audiomode:i:0\r\n");
+        sb.Append("audiocapturemode:i:1\r\n");
+        // All local devices and resources.
+        sb.Append("redirectclipboard:i:1\r\n");
+        sb.Append("redirectprinters:i:1\r\n");
+        sb.Append("redirectcomports:i:1\r\n");
+        sb.Append("redirectsmartcards:i:1\r\n");
+        sb.Append("redirectposdevices:i:1\r\n");
+        sb.Append("redirectdrives:i:1\r\n");
+        sb.Append("drivestoredirect:s:*\r\n");
         return sb.ToString();
     }
 
@@ -173,6 +184,10 @@ public class PhysicalMachineService(AppDbContext db, ILogger<PhysicalMachineServ
         var rdp = RdpFile(new PhysicalMachine { Host = "10.0.0.5", ProbePort = 3389, OsUser = "tester" });
         if (!rdp.Contains("full address:s:10.0.0.5:3389")) throw new Exception("RDP-Adresszeile fehlt");
         if (!rdp.Contains("username:s:tester")) throw new Exception("RDP-Benutzerzeile fehlt");
+        if (!rdp.Contains("use multimon:i:0")) throw new Exception("Multimon-Default (aus) fehlt");
+        if (!RdpFile(new PhysicalMachine { Host = "h", ProbePort = 3389 }, true).Contains("use multimon:i:1")) throw new Exception("Multimon (an) fehlt");
+        if (!rdp.Contains("audiocapturemode:i:1")) throw new Exception("Audio-Aufnahme fehlt");
+        if (!rdp.Contains("drivestoredirect:s:*")) throw new Exception("Geräte-Redirect fehlt");
 
         // Guacamole deep link: base64("<id>\0c\0<datasource>"), the scheme filled in when absent.
         var g = new PhysicalMachine { GuacHost = "rdp.example.com", GuacConnectionId = "1" };

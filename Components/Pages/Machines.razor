@@ -42,7 +42,13 @@
             {
                 <a class="btn sm" href="@guac" target="_blank" rel="noopener">@Loc.T("Im Browser verbinden")</a>
             }
-            <a class="btn sm" href="/pc.rdp?id=@m.Id">@Loc.T(".rdp herunterladen")</a>
+            <span class="dropdown" style="display:inline-block">
+                <button type="button" class="btn sm">@Loc.T(".rdp herunterladen") <span class="caret">▾</span></button>
+                <div class="drop-menu">
+                    <a href="/pc.rdp?id=@m.Id&multimon=true">🖥️🖥️ @Loc.T("Alle Monitore")</a>
+                    <a href="/pc.rdp?id=@m.Id&multimon=false">🖥️ @Loc.T("Ein Monitor")</a>
+                </div>
+            </span>
 
             <AuthorizeView Roles="Admin" Context="admin">
                 <button class="btn sm" @onclick="() => ToggleConsole(m)">@Loc.T("Terminal")</button>

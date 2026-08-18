@@ -131,13 +131,13 @@ app.MapGet("/set-lang", async (string c, string? r, PveWelcome.Services.Connecti
     return Results.Redirect(string.IsNullOrEmpty(r) ? "/" : r);
 });
 
-app.MapGet("/pc.rdp", async (int id, PhysicalMachineService machines) =>
+app.MapGet("/pc.rdp", async (int id, bool? multimon, PhysicalMachineService machines) =>
 {
     var m = await machines.GetAsync(id);
     if (m is null) return Results.NotFound();
     var name = string.Concat((string.IsNullOrWhiteSpace(m.Name) ? "pc" : m.Name)
         .Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
-    return Results.File(System.Text.Encoding.UTF8.GetBytes(PhysicalMachineService.RdpFile(m)),
+    return Results.File(System.Text.Encoding.UTF8.GetBytes(PhysicalMachineService.RdpFile(m, multimon ?? false)),
         "application/x-rdp", $"{name}.rdp");
 }).RequireAuthorization();
 
