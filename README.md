@@ -2,6 +2,8 @@
 
 *🇩🇪 Deutsch: [README_de.md](README_de.md)*
 
+[![QuickRun](https://quickrun.org/badge.svg)](https://quickrun.org/run?repo=fgilde/PveWelcome)
+
 A small, branded landing page **and** an internal dashboard for your Proxmox node — in one app.
 Publicly it shows your brand; once logged in you get node health, every VM/container with
 start/stop/restart, storage, backups (backup **and** restore at the click of a button), and your
