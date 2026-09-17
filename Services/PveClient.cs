@@ -343,6 +343,16 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
                 }
             }
         }
+        // QEMU status reports disk=0 — fill real used disk from the guest agent where available.
+        for (var i = 0; i < guests.Count; i++)
+        {
+            var g = guests[i];
+            if (g.IsRunning && g.Type == "qemu" && g.DiskUsed is null)
+            {
+                var used = await AgentDiskUsedAsync(g.Node, g.VmId);
+                if (used is not null) guests[i] = g with { DiskUsed = used };
+            }
+        }
         return guests.OrderBy(g => g.VmId).ToList();
     }
 
@@ -366,6 +376,30 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
                 null)).ToList();
         }
         catch (Exception ex) { log.LogWarning(ex, "guests {Node}/{Type}", node, type); return []; }
+    }
+
+    /// Real used disk of a QEMU VM via the guest agent (PVE's qemu status reports disk=0).
+    /// Uses the root filesystem's used-bytes, else the largest filesystem. null when no agent.
+    private async Task<long?> AgentDiskUsedAsync(string node, int vmid)
+    {
+        try
+        {
+            var d = await GetDataAsync($"/nodes/{node}/qemu/{vmid}/agent/get-fsinfo");
+            var result = d.TryGetProperty("result", out var r) ? r : d;
+            long? rootUsed = null;
+            long bestTotal = -1, bestUsed = 0;
+            foreach (var fs in result.EnumerateArray())
+            {
+                if (!fs.TryGetProperty("used-bytes", out var ub) || !fs.TryGetProperty("total-bytes", out var tb)) continue;
+                var mnt = fs.TryGetProperty("mountpoint", out var mp) ? mp.GetString() ?? "" : "";
+                var used = ub.GetInt64();
+                var total = tb.GetInt64();
+                if (mnt == "/") rootUsed = used;
+                if (total > bestTotal) { bestTotal = total; bestUsed = used; }
+            }
+            return rootUsed ?? (bestTotal >= 0 ? bestUsed : null);
+        }
+        catch { return null; }
     }
 
     private async Task<string?> TryGetIpAsync(PveGuest g)
