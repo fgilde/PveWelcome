@@ -92,6 +92,31 @@
             <TaskFeed Tasks="gtasks" Node="Data.Node" />
         }
 
+        <AuthorizeView Roles="Admin" Context="alloc">
+            <div class="settings-card">
+                <h2 style="margin-top:0">@Loc.T("Ressourcen zuteilen")</h2>
+                <div class="settings-grid">
+                    <label>RAM (GB)<input type="number" min="1" @bind="allocRamGb" /></label>
+                    <label>@Loc.T("Disk (GB, nur größer)")<input type="number" min="@curDiskGb" @bind="allocDiskGb" /></label>
+                </div>
+                <p class="muted small">
+                    @Loc.T("Node") @NodeRamGb GB RAM · @Loc.T("Disk-Pool") „@diskStorage" @PoolFreeGb GB @Loc.T("frei") ·
+                    @Loc.T("belegt") @Format.Bytes(guest.DiskUsed) / @curDiskGb GB · @Loc.T("RAM wirkt nach Neustart.")
+                </p>
+                <div class="actions">
+                    <button class="btn sm go" disabled="@resBusy" @onclick="ApplyResources">@Loc.T("Zuteilen")</button>
+                    @if (guest.IsRunning)
+                    {
+                        <button class="btn sm" disabled="@busy" @onclick='() => Act("reboot")'>@Loc.T("Neu starten")</button>
+                    }
+                </div>
+                @if (resMsg is not null)
+                {
+                    <p class="muted">@resMsg</p>
+                }
+            </div>
+        </AuthorizeView>
+
         <div class="res-head">
             <h2>@Loc.T("Snapshots")</h2>
             <button class="btn sm" disabled="@busy" @onclick="CreateSnap">＋ Snapshot</button>
@@ -306,6 +331,16 @@
     private bool showBrowser;
     private string browsePath = ".";
     private List<DirEntry> browseEntries = [];
+    private int allocRamGb;
+    private int allocDiskGb;
+    private string? bootDiskKey;
+    private string diskStorage = "";
+    private int curDiskGb;
+    private string? resMsg;
+    private bool resBusy;
+
+    private int NodeRamGb => (int)((Data.Health?.MemMax ?? 0) / 1073741824);
+    private int PoolFreeGb => (int)((Data.Storages.FirstOrDefault(s => s.Name == diskStorage)?.Avail ?? 0) / 1073741824);
 
     private StandaloneEditorConstructionOptions EditorOptions(StandaloneCodeEditor _) => new()
     {
@@ -383,6 +418,44 @@
         rrd = await Pve.GetGuestRrdAsync(guest.Node, guest.Type, guest.VmId);
         snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
         scripts = await Scripts.ListAsync(guest.VmId);
+        var bd = await Pve.GetBootDiskAsync(guest.Node, guest.Type, guest.VmId);
+        if (bd is { } b) { bootDiskKey = b.disk; diskStorage = b.storage; curDiskGb = (int)(b.sizeBytes / 1073741824); }
+        allocRamGb = Math.Max(1, (int)(guest.MemMax / 1073741824));
+        allocDiskGb = curDiskGb > 0 ? curDiskGb : (int)((guest.DiskMax ?? 0) / 1073741824);
+    }
+
+    private async Task ApplyResources()
+    {
+        if (guest is null) return;
+        resBusy = true; resMsg = null;
+        var msgs = new List<string>();
+        if (allocRamGb < 1) { resMsg = Loc.T("RAM zu klein."); resBusy = false; return; }
+        if (allocRamGb > NodeRamGb) { resMsg = Loc.T("RAM größer als der Node ({0} GB).", NodeRamGb); resBusy = false; return; }
+
+        var newRamMb = allocRamGb * 1024;
+        if (newRamMb != (int)(guest.MemMax / 1048576))
+        {
+            var err = await Pve.SetResourcesAsync(guest.Node, guest.Type, guest.VmId, newRamMb, null);
+            msgs.Add(err is null ? Loc.T("RAM auf {0} GB gesetzt (aktiv nach Neustart).", allocRamGb) : Loc.T("RAM-Fehler: {0}", err));
+        }
+
+        if (allocDiskGb > curDiskGb && bootDiskKey is not null)
+        {
+            var delta = allocDiskGb - curDiskGb;
+            if (delta > PoolFreeGb) msgs.Add(Loc.T("Disk: nur {0} GB im Pool frei.", PoolFreeGb));
+            else
+            {
+                var err = await Pve.GrowDiskAsync(guest.Node, guest.Type, guest.VmId, bootDiskKey, delta, growFs: true);
+                msgs.Add(err is null ? Loc.T("Disk auf {0} GB vergrößert.", allocDiskGb) : Loc.T("Disk-Fehler: {0}", err));
+            }
+        }
+        else if (allocDiskGb < curDiskGb) msgs.Add(Loc.T("Disk kann nur vergrößert werden."));
+
+        resBusy = false;
+        await Data.RefreshAsync();
+        Resolve();
+        await LoadExtras();
+        resMsg = msgs.Count > 0 ? string.Join(" · ", msgs) : Loc.T("Keine Änderung.");
     }
 
     private void NewScript()

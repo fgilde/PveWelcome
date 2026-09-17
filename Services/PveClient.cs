@@ -470,6 +470,56 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
         return null;
     }
 
+    /// Set memory (MB) and/or cores on a guest. Effective after a reboot for VMs. null = ok, else error.
+    public Task<string?> SetResourcesAsync(string node, string type, int vmid, int? memoryMb, int? cores)
+    {
+        var form = new Dictionary<string, string>();
+        if (memoryMb is int m) form["memory"] = m.ToString();
+        if (cores is int c) form["cores"] = c.ToString();
+        if (form.Count == 0) return Task.FromResult<string?>(null);
+        var req = Req(HttpMethod.Post, $"/nodes/{node}/{type}/{vmid}/config");
+        req.Content = new FormUrlEncodedContent(form);
+        return SendErr(req);
+    }
+
+    /// The boot disk key (scsi0/virtio0/…) and its provisioned size in bytes, plus its storage name.
+    public async Task<(string disk, long sizeBytes, string storage)?> GetBootDiskAsync(string node, string type, int vmid)
+    {
+        try
+        {
+            var cfg = await GetDataAsync($"/nodes/{node}/{type}/{vmid}/config");
+            var boot = cfg.TryGetProperty("boot", out var b) ? b.GetString() ?? "" : "";
+            var order = boot.Contains("order=") ? boot.Split("order=")[1].Split(';', ',') : [];
+            var diskKey = order.FirstOrDefault(k => System.Text.RegularExpressions.Regex.IsMatch(k.Trim(), @"^(scsi|virtio|sata)\d+$") && cfg.TryGetProperty(k.Trim(), out _))?.Trim();
+            diskKey ??= new[] { "scsi0", "virtio0", "sata0" }.FirstOrDefault(k => cfg.TryGetProperty(k, out _));
+            if (diskKey is null || !cfg.TryGetProperty(diskKey, out var dv)) return null;
+            var val = dv.GetString() ?? "";
+            var storage = val.Contains(':') ? val.Split(':')[0] : "";
+            var sm = System.Text.RegularExpressions.Regex.Match(val, @"size=(\d+)([KMGT])");
+            long bytes = 0;
+            if (sm.Success)
+            {
+                long n = long.Parse(sm.Groups[1].Value);
+                bytes = sm.Groups[2].Value switch { "K" => n * 1024, "M" => n * 1048576, "G" => n * 1073741824, "T" => n * 1099511627776, _ => n };
+            }
+            return (diskKey, bytes, storage);
+        }
+        catch (Exception ex) { log.LogWarning(ex, "bootdisk {Vmid}", vmid); return null; }
+    }
+
+    /// Grow a guest disk by deltaGib (grow only), then grow the guest filesystem via the agent (ext4 on sda/vda best-effort).
+    public async Task<string?> GrowDiskAsync(string node, string type, int vmid, string disk, int deltaGib, bool growFs)
+    {
+        if (deltaGib <= 0) return "Nur Vergrößern möglich.";
+        var req = Req(HttpMethod.Put, $"/nodes/{node}/{type}/{vmid}/resize");
+        req.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["disk"] = disk, ["size"] = $"+{deltaGib}G" });
+        var err = await SendErr(req);
+        if (err is not null) return err;
+        if (growFs && type == "qemu")
+            await GuestExecAsync(node, vmid, "for d in sda vda; do growpart /dev/$d 1 2>/dev/null; resize2fs /dev/${d}1 2>/dev/null; done; true");
+        return null;
+    }
+
     public async Task<bool> ActionAsync(string node, string type, int vmid, string action)
     {
         try
