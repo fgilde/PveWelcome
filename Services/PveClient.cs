@@ -482,29 +482,33 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
         return SendErr(req);
     }
 
-    /// The boot disk key (scsi0/virtio0/…) and its provisioned size in bytes, plus its storage name.
-    public async Task<(string disk, long sizeBytes, string storage)?> GetBootDiskAsync(string node, string type, int vmid)
+    /// Current cores + the boot disk key (scsi0/virtio0/…), its provisioned size in bytes, and its storage.
+    public async Task<(int cores, string disk, long sizeBytes, string storage)?> GetAllocInfoAsync(string node, string type, int vmid)
     {
         try
         {
             var cfg = await GetDataAsync($"/nodes/{node}/{type}/{vmid}/config");
+            var cores = cfg.TryGetProperty("cores", out var cv) ? cv.GetInt32() : 1;
             var boot = cfg.TryGetProperty("boot", out var b) ? b.GetString() ?? "" : "";
             var order = boot.Contains("order=") ? boot.Split("order=")[1].Split(';', ',') : [];
             var diskKey = order.FirstOrDefault(k => System.Text.RegularExpressions.Regex.IsMatch(k.Trim(), @"^(scsi|virtio|sata)\d+$") && cfg.TryGetProperty(k.Trim(), out _))?.Trim();
-            diskKey ??= new[] { "scsi0", "virtio0", "sata0" }.FirstOrDefault(k => cfg.TryGetProperty(k, out _));
-            if (diskKey is null || !cfg.TryGetProperty(diskKey, out var dv)) return null;
-            var val = dv.GetString() ?? "";
-            var storage = val.Contains(':') ? val.Split(':')[0] : "";
-            var sm = System.Text.RegularExpressions.Regex.Match(val, @"size=(\d+)([KMGT])");
+            diskKey ??= new[] { "scsi0", "virtio0", "sata0" }.FirstOrDefault(k => cfg.TryGetProperty(k, out _)) ?? "";
             long bytes = 0;
-            if (sm.Success)
+            var storage = "";
+            if (cfg.TryGetProperty(diskKey, out var dv))
             {
-                long n = long.Parse(sm.Groups[1].Value);
-                bytes = sm.Groups[2].Value switch { "K" => n * 1024, "M" => n * 1048576, "G" => n * 1073741824, "T" => n * 1099511627776, _ => n };
+                var val = dv.GetString() ?? "";
+                storage = val.Contains(':') ? val.Split(':')[0] : "";
+                var sm = System.Text.RegularExpressions.Regex.Match(val, @"size=(\d+)([KMGT])");
+                if (sm.Success)
+                {
+                    long n = long.Parse(sm.Groups[1].Value);
+                    bytes = sm.Groups[2].Value switch { "K" => n * 1024, "M" => n * 1048576, "G" => n * 1073741824, "T" => n * 1099511627776, _ => n };
+                }
             }
-            return (diskKey, bytes, storage);
+            return (cores, diskKey, bytes, storage);
         }
-        catch (Exception ex) { log.LogWarning(ex, "bootdisk {Vmid}", vmid); return null; }
+        catch (Exception ex) { log.LogWarning(ex, "alloc info {Vmid}", vmid); return null; }
     }
 
     /// Grow a guest disk by deltaGib (grow only), then grow the guest filesystem via the agent (ext4 on sda/vda best-effort).

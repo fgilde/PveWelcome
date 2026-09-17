@@ -97,11 +97,12 @@
                 <h2 style="margin-top:0">@Loc.T("Ressourcen zuteilen")</h2>
                 <div class="settings-grid">
                     <label>RAM (GB)<input type="number" min="1" @bind="allocRamGb" /></label>
+                    <label>@Loc.T("CPU-Kerne")<input type="number" min="1" @bind="allocCores" /></label>
                     <label>@Loc.T("Disk (GB, nur größer)")<input type="number" min="@curDiskGb" @bind="allocDiskGb" /></label>
                 </div>
                 <p class="muted small">
-                    @Loc.T("Node") @NodeRamGb GB RAM · @Loc.T("Disk-Pool") „@diskStorage" @PoolFreeGb GB @Loc.T("frei") ·
-                    @Loc.T("belegt") @Format.Bytes(guest.DiskUsed) / @curDiskGb GB · @Loc.T("RAM wirkt nach Neustart.")
+                    @Loc.T("Node") @NodeRamGb GB RAM / @NodeCpu @Loc.T("Kerne") · @Loc.T("Disk-Pool") „@diskStorage" @PoolFreeGb GB @Loc.T("frei") ·
+                    @Loc.T("belegt") @Format.Bytes(guest.DiskUsed) / @curDiskGb GB · @Loc.T("RAM/Kerne wirken nach Neustart.")
                 </p>
                 <div class="actions">
                     <button class="btn sm go" disabled="@resBusy" @onclick="ApplyResources">@Loc.T("Zuteilen")</button>
@@ -332,6 +333,8 @@
     private string browsePath = ".";
     private List<DirEntry> browseEntries = [];
     private int allocRamGb;
+    private int allocCores;
+    private int curCores;
     private int allocDiskGb;
     private string? bootDiskKey;
     private string diskStorage = "";
@@ -340,6 +343,7 @@
     private bool resBusy;
 
     private int NodeRamGb => (int)((Data.Health?.MemMax ?? 0) / 1073741824);
+    private int NodeCpu => Data.Health?.CpuCount ?? 0;
     private int PoolFreeGb => (int)((Data.Storages.FirstOrDefault(s => s.Name == diskStorage)?.Avail ?? 0) / 1073741824);
 
     private StandaloneEditorConstructionOptions EditorOptions(StandaloneCodeEditor _) => new()
@@ -418,9 +422,10 @@
         rrd = await Pve.GetGuestRrdAsync(guest.Node, guest.Type, guest.VmId);
         snaps = await Pve.GetSnapshotsAsync(guest.Node, guest.Type, guest.VmId);
         scripts = await Scripts.ListAsync(guest.VmId);
-        var bd = await Pve.GetBootDiskAsync(guest.Node, guest.Type, guest.VmId);
-        if (bd is { } b) { bootDiskKey = b.disk; diskStorage = b.storage; curDiskGb = (int)(b.sizeBytes / 1073741824); }
+        var bd = await Pve.GetAllocInfoAsync(guest.Node, guest.Type, guest.VmId);
+        if (bd is { } b) { curCores = b.cores; bootDiskKey = string.IsNullOrEmpty(b.disk) ? null : b.disk; diskStorage = b.storage; curDiskGb = (int)(b.sizeBytes / 1073741824); }
         allocRamGb = Math.Max(1, (int)(guest.MemMax / 1073741824));
+        allocCores = Math.Max(1, curCores);
         allocDiskGb = curDiskGb > 0 ? curDiskGb : (int)((guest.DiskMax ?? 0) / 1073741824);
     }
 
@@ -431,12 +436,22 @@
         var msgs = new List<string>();
         if (allocRamGb < 1) { resMsg = Loc.T("RAM zu klein."); resBusy = false; return; }
         if (allocRamGb > NodeRamGb) { resMsg = Loc.T("RAM größer als der Node ({0} GB).", NodeRamGb); resBusy = false; return; }
+        if (allocCores < 1) { resMsg = Loc.T("Mindestens 1 Kern."); resBusy = false; return; }
+        if (NodeCpu > 0 && allocCores > NodeCpu) { resMsg = Loc.T("Mehr Kerne als der Node ({0}).", NodeCpu); resBusy = false; return; }
 
         var newRamMb = allocRamGb * 1024;
-        if (newRamMb != (int)(guest.MemMax / 1048576))
+        var ramChanged = newRamMb != (int)(guest.MemMax / 1048576);
+        var coresChanged = allocCores != curCores;
+        if (ramChanged || coresChanged)
         {
-            var err = await Pve.SetResourcesAsync(guest.Node, guest.Type, guest.VmId, newRamMb, null);
-            msgs.Add(err is null ? Loc.T("RAM auf {0} GB gesetzt (aktiv nach Neustart).", allocRamGb) : Loc.T("RAM-Fehler: {0}", err));
+            var err = await Pve.SetResourcesAsync(guest.Node, guest.Type, guest.VmId,
+                ramChanged ? newRamMb : null, coresChanged ? allocCores : null);
+            if (err is not null) msgs.Add(Loc.T("RAM-Fehler: {0}", err));
+            else
+            {
+                if (ramChanged) msgs.Add(Loc.T("RAM auf {0} GB gesetzt (aktiv nach Neustart).", allocRamGb));
+                if (coresChanged) msgs.Add(Loc.T("Kerne auf {0} gesetzt (aktiv nach Neustart).", allocCores));
+            }
         }
 
         if (allocDiskGb > curDiskGb && bootDiskKey is not null)

@@ -327,5 +327,11 @@
   "Disk auf {0} GB vergrößert.": "Disk grown to {0} GB.",
   "Disk-Fehler: {0}": "Disk error: {0}",
   "Disk kann nur vergrößert werden.": "Disk can only be grown.",
+  "CPU-Kerne": "CPU cores",
+  "Kerne": "cores",
+  "RAM/Kerne wirken nach Neustart.": "RAM/cores apply after reboot.",
+  "Mindestens 1 Kern.": "At least 1 core.",
+  "Mehr Kerne als der Node ({0}).": "More cores than the node ({0}).",
+  "Kerne auf {0} gesetzt (aktiv nach Neustart).": "Cores set to {0} (active after reboot).",
   "Fehler: {0}": "Error: {0}"
 }
