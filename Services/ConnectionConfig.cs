@@ -77,6 +77,14 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
                  })
             try { await db.Database.ExecuteSqlRawAsync($"ALTER TABLE \"PhysicalMachines\" ADD COLUMN \"{col}\" TEXT NOT NULL DEFAULT {def};"); }
             catch { }
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS \"StorageAliases\" (" +
+            "\"StorageId\" TEXT NOT NULL CONSTRAINT \"PK_StorageAliases\" PRIMARY KEY, " +
+            "\"Label\" TEXT NOT NULL DEFAULT '');");
+        // Seed the two known backup targets with friendly labels (no-op if already present).
+        await db.Database.ExecuteSqlRawAsync(
+            "INSERT OR IGNORE INTO \"StorageAliases\" (\"StorageId\", \"Label\") VALUES " +
+            "('nas-gilde', 'gilde-nas'), ('nas-backup', 'nksoft-nas');");
 
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is null)
@@ -123,6 +131,43 @@ public class ConnectionConfig(IServiceScopeFactory scopeFactory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var row = await db.Connections.FirstOrDefaultAsync();
         if (row is not null) { row.Language = lang; await db.SaveChangesAsync(); }
+    }
+
+    /// Persist just the default backup storage id (from the Backup-Ziele section).
+    public async Task SetBackupStorageAsync(string storage)
+    {
+        storage = (storage ?? "").Trim();
+        _current.BackupStorage = storage;
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.Connections.FirstOrDefaultAsync();
+        if (row is not null) { row.BackupStorage = storage; await db.SaveChangesAsync(); }
+        Changed?.Invoke();
+    }
+
+    /// Friendly display labels for PVE storage ids: { storageId -> label }.
+    public async Task<Dictionary<string, string>> GetAliasesAsync()
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.StorageAliases.ToDictionaryAsync(a => a.StorageId, a => a.Label);
+    }
+
+    /// Set (or clear, when label is empty) the display label for a storage id.
+    public async Task SetAliasAsync(string storageId, string label)
+    {
+        label = (label ?? "").Trim();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var existing = await db.StorageAliases.FindAsync(storageId);
+        if (existing is null)
+        {
+            if (label.Length > 0) db.StorageAliases.Add(new StorageAlias { StorageId = storageId, Label = label });
+        }
+        else if (label.Length == 0) db.StorageAliases.Remove(existing);
+        else existing.Label = label;
+        await db.SaveChangesAsync();
+        Changed?.Invoke();
     }
 
     /// Persist just the MCP endpoint URL (from the MCP admin page).

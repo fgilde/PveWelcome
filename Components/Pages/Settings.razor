@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject ConnectionConfig Conn
 @inject PveDataService Data
+@inject PveClient Pve
 @inject MonitorService Monitors
 
 <PageTitle>@Loc.T("Einstellungen")</PageTitle>
@@ -21,25 +22,83 @@
             <label>NPM URL<input @bind="conn.NpmBaseUrl" placeholder="http://host:81" /></label>
             <label>@Loc.T("NPM Benutzer")<input @bind="conn.NpmUser" /></label>
             <label>@Loc.T("NPM Passwort")<input type="password" @bind="conn.NpmPassword" /></label>
-            <label>@Loc.T("Backup-Ziel (Storage)")
-                <select @bind="conn.BackupStorage">
-                    <option value="">@Loc.T("(erstes verfügbares)")</option>
-                    @foreach (var s in Data.BackupStorages)
-                    {
-                        <option value="@s">@s</option>
-                    }
-                </select>
-            </label>
-            <label>Alert-Webhook (optional)<input @bind="conn.NotifyWebhook" placeholder="https://... (POST {&quot;text&quot;:...})" /></label>
-            <label>Telegram Bot-Token (optional)<input type="password" @bind="conn.TelegramToken" placeholder="123456:ABC..." /></label>
-            <label>Telegram Chat-ID (optional)<input @bind="conn.TelegramChatId" placeholder="@Loc.T("z.B. 12345678")" /></label>
         </div>
-        <p class="muted" style="margin:.25rem 0 0">@Loc.T("Bei neuen Alerts (Pool voll, Guest down, Backup fehlt, Updates) wird — falls gesetzt — an Webhook und/oder Telegram gepusht.")</p>
         <button class="btn sm go" @onclick="SaveConn">@Loc.T("Speichern & neu laden")</button>
         @if (connMsg is not null)
         {
             <span class="muted" style="margin-left:1rem">@connMsg</span>
         }
+    </div>
+
+    <h2>@Loc.T("Backup-Ziele")</h2>
+    <p class="muted">@Loc.T("Proxmox-Storages, die Backups aufnehmen. Hier anlegen, umbenennen (Anzeigename), als Standard markieren oder entfernen. Der eigentliche Backup-Inhalt auf dem NAS bleibt beim Löschen erhalten.")</p>
+    <div class="settings-card">
+        @foreach (var s in backupStorages)
+        {
+            <div class="user-row">
+                @if (renameId == s.Name)
+                {
+                    <input @bind="renameLabel" placeholder="@s.Name" style="min-width:12rem" />
+                    <button class="btn xs go" @onclick="SaveRename">@Loc.T("Speichern")</button>
+                    <button class="btn xs" @onclick="() => renameId = null">@Loc.T("Abbrechen")</button>
+                    <span class="muted" style="flex:1">@Loc.T("Anzeigename (die Proxmox-ID {0} bleibt unverändert).", s.Name)</span>
+                }
+                else
+                {
+                    <span class="uname">@Label(s.Name)</span>
+                    <span class="muted">@s.Name · @s.Type</span>
+                    <span class="muted" style="flex:1">@Gb(s.Avail) @Loc.T("frei") / @Gb(s.Total)</span>
+                    @if (IsDefault(s.Name))
+                    {
+                        <span class="pill on">@Loc.T("Standard")</span>
+                    }
+                    else
+                    {
+                        <button class="btn xs" @onclick="() => SetDefault(s.Name)">@Loc.T("Als Standard")</button>
+                    }
+                    <button class="btn xs" @onclick="() => StartRename(s.Name)">@Loc.T("Umbenennen")</button>
+                    @if (confirmDeleteId == s.Name)
+                    {
+                        <button class="btn xs danger" @onclick="() => DeleteTarget(s.Name)">@Loc.T("Wirklich löschen?")</button>
+                        <button class="btn xs" @onclick="() => confirmDeleteId = null">@Loc.T("Nein")</button>
+                    }
+                    else
+                    {
+                        <button class="btn xs danger" @onclick="() => confirmDeleteId = s.Name">@Loc.T("Löschen")</button>
+                    }
+                }
+            </div>
+        }
+        @if (backupStorages.Count == 0)
+        {
+            <p class="muted">@Loc.T("Noch kein Backup-Ziel vorhanden.")</p>
+        }
+
+        <h3 style="margin:1rem 0 .25rem">@Loc.T("Neues Ziel anlegen (CIFS/SMB)")</h3>
+        <div class="settings-grid">
+            <label>@Loc.T("Proxmox-ID")<input @bind="nId" placeholder="nas-xyz" /></label>
+            <label>@Loc.T("Anzeigename (optional)")<input @bind="nLabel" placeholder="z.B. büro-nas" /></label>
+            <label>@Loc.T("Server (IP/Host)")<input @bind="nServer" placeholder="192.168.178.x" /></label>
+            <label>@Loc.T("Freigabe (Share)")<input @bind="nShare" placeholder="pve-backups" /></label>
+            <label>@Loc.T("Benutzer")<input @bind="nUser" /></label>
+            <label>@Loc.T("Passwort")<input type="password" @bind="nPass" /></label>
+        </div>
+        <button class="btn sm go" @onclick="CreateTarget">@Loc.T("Anlegen")</button>
+        @if (backupMsg is not null)
+        {
+            <span class="muted" style="margin-left:1rem">@backupMsg</span>
+        }
+    </div>
+
+    <h2>@Loc.T("Benachrichtigungen")</h2>
+    <p class="muted">@Loc.T("Bei neuen Alerts (Pool voll, Guest down, Backup fehlt, Updates) wird — falls gesetzt — an Webhook und/oder Telegram gepusht.")</p>
+    <div class="settings-card">
+        <div class="settings-grid">
+            <label>Alert-Webhook (optional)<input @bind="conn.NotifyWebhook" placeholder="https://... (POST {&quot;text&quot;:...})" /></label>
+            <label>Telegram Bot-Token (optional)<input type="password" @bind="conn.TelegramToken" placeholder="123456:ABC..." /></label>
+            <label>Telegram Chat-ID (optional)<input @bind="conn.TelegramChatId" placeholder="@Loc.T("z.B. 12345678")" /></label>
+        </div>
+        <button class="btn sm go" @onclick="SaveConn">@Loc.T("Speichern & neu laden")</button>
     </div>
 
     <h2>@Loc.T("Monitore (eigene HTTP-Checks)")</h2>
@@ -73,6 +132,23 @@
     private string monName = "";
     private string monUrl = "";
 
+    // Backup targets
+    private Dictionary<string, string> aliases = new();
+    private List<StorageInfo> backupStorages = [];
+    private string? backupMsg;
+    private string? renameId;
+    private string renameLabel = "";
+    private string? confirmDeleteId;
+    private string nId = "", nLabel = "", nServer = "", nShare = "", nUser = "", nPass = "";
+
+    private string Label(string id) => aliases.TryGetValue(id, out var l) && !string.IsNullOrWhiteSpace(l) ? l : id;
+    private static string Gb(long b) => (b / 1024d / 1024 / 1024).ToString("0.#") + " GB";
+    private bool IsDefault(string id)
+    {
+        var d = Conn.Current.BackupStorage;
+        return string.IsNullOrWhiteSpace(d) ? id == backupStorages.FirstOrDefault()?.Name : id == d;
+    }
+
     private async Task AddMon() { await Monitors.AddAsync(monName, monUrl); monName = ""; monUrl = ""; monitors = await Monitors.ListAsync(); await Data.RefreshAsync(); }
     private async Task ToggleMon(int id) { await Monitors.ToggleAsync(id); monitors = await Monitors.ListAsync(); await Data.RefreshAsync(); }
     private async Task DeleteMon(int id) { await Monitors.DeleteAsync(id); monitors = await Monitors.ListAsync(); await Data.RefreshAsync(); }
@@ -88,13 +164,79 @@
             BackupStorage = c.BackupStorage,
             NotifyWebhook = c.NotifyWebhook, TelegramToken = c.TelegramToken, TelegramChatId = c.TelegramChatId
         };
+        await ReloadTargetsAsync();
+    }
+
+    private async Task ReloadTargetsAsync()
+    {
+        aliases = await Conn.GetAliasesAsync();
+        backupStorages = Data.Storages.Where(s => s.TakesBackups).ToList();
     }
 
     private async Task SaveConn()
     {
         await Conn.SaveAsync(conn);
         await Data.RefreshAsync();
+        await ReloadTargetsAsync();
         connMsg = Loc.T("Gespeichert. Daten werden neu geladen.");
     }
 
+    private void StartRename(string id)
+    {
+        renameId = id;
+        renameLabel = Label(id);
+        confirmDeleteId = null;
+    }
+
+    private async Task SaveRename()
+    {
+        if (renameId is null) return;
+        // Clearing to the raw id means "no alias".
+        var label = renameLabel.Trim() == renameId ? "" : renameLabel;
+        await Conn.SetAliasAsync(renameId, label);
+        renameId = null;
+        await ReloadTargetsAsync();
+    }
+
+    private async Task SetDefault(string id)
+    {
+        await Conn.SetBackupStorageAsync(id);
+        conn.BackupStorage = id;
+        backupMsg = Loc.T("Standard-Backup-Ziel: {0}", Label(id));
+    }
+
+    private async Task DeleteTarget(string id)
+    {
+        confirmDeleteId = null;
+        var err = await Pve.DeleteStorageAsync(id);
+        if (err is null)
+        {
+            await Conn.SetAliasAsync(id, "");
+            if (Conn.Current.BackupStorage == id) { await Conn.SetBackupStorageAsync(""); conn.BackupStorage = ""; }
+            await Data.RefreshAsync();
+            await ReloadTargetsAsync();
+            backupMsg = Loc.T("Gelöscht: {0}", id);
+        }
+        else backupMsg = Loc.T("Fehler beim Löschen: {0}", err);
+    }
+
+    private async Task CreateTarget()
+    {
+        backupMsg = null;
+        if (string.IsNullOrWhiteSpace(nId) || string.IsNullOrWhiteSpace(nServer) || string.IsNullOrWhiteSpace(nShare))
+        {
+            backupMsg = Loc.T("Proxmox-ID, Server und Freigabe sind Pflicht.");
+            return;
+        }
+        var err = await Pve.CreateCifsStorageAsync(nId.Trim(), nServer.Trim(), nShare.Trim(), nUser.Trim(), nPass);
+        if (err is null)
+        {
+            if (!string.IsNullOrWhiteSpace(nLabel)) await Conn.SetAliasAsync(nId.Trim(), nLabel.Trim());
+            backupMsg = Loc.T("Angelegt: {0}", nId.Trim());
+            nId = nLabel = nServer = nShare = nUser = nPass = "";
+            await Data.RefreshAsync();
+            await ReloadTargetsAsync();
+        }
+        else backupMsg = Loc.T("Fehler beim Anlegen: {0}", err);
+    }
 }

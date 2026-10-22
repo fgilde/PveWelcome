@@ -130,6 +130,27 @@ public class PveClient(HttpClient http, ConnectionConfig config, ILogger<PveClie
     public Task<string?> DeleteBackupAsync(string node, string storage, string volid) =>
         SendErr(Req(HttpMethod.Delete, $"/nodes/{node}/storage/{storage}/content/{Uri.EscapeDataString(volid)}"));
 
+    /// Create a CIFS/SMB backup storage (cluster-wide). Returns null on success, else an error string.
+    public Task<string?> CreateCifsStorageAsync(string id, string server, string share, string username, string password)
+    {
+        var req = Req(HttpMethod.Post, "/storage");
+        req.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["storage"] = id,
+            ["type"] = "cifs",
+            ["server"] = server,
+            ["share"] = share,
+            ["username"] = username,
+            ["password"] = password,
+            ["content"] = "backup",
+        });
+        return SendErr(req);
+    }
+
+    /// Delete a storage definition (removes the mount config, not the data on the remote). Returns null on success.
+    public Task<string?> DeleteStorageAsync(string id) =>
+        SendErr(Req(HttpMethod.Delete, $"/storage/{Uri.EscapeDataString(id)}"));
+
     private async Task<List<RrdPoint>> RrdAsync(string path, string memUsedKey, string memTotalKey)
     {
         try

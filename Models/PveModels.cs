@@ -60,6 +60,13 @@ public record StorageInfo(string Name, string Type, long Total, long Used, long 
     public bool TakesBackups => Content.Contains("backup");
 }
 
+/// User-friendly display label for a PVE storage id (PVE itself can't rename a storage).
+public class StorageAlias
+{
+    public string StorageId { get; set; } = "";
+    public string Label { get; set; } = "";
+}
+
 /// Health of a Proxmox node.
 public record NodeStatus(
     string Node,

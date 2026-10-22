@@ -14,10 +14,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<GuestScript> GuestScripts => Set<GuestScript>();
     public DbSet<LandingPage> LandingPages => Set<LandingPage>();
     public DbSet<PhysicalMachine> PhysicalMachines => Set<PhysicalMachine>();
+    public DbSet<StorageAlias> StorageAliases => Set<StorageAlias>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<AppUser>().HasIndex(u => u.Username).IsUnique();
         b.Entity<BrandConfig>().HasIndex(x => x.Host).IsUnique();
+        b.Entity<StorageAlias>().HasKey(x => x.StorageId);
     }
 }
