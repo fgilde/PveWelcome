@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject PveDataService Data
 @inject PveClient Pve
+@inject ConnectionConfig Conn
 @inject IJSRuntime JS
 
 <PageTitle>@Loc.T("Backup-Jobs")</PageTitle>
@@ -31,7 +32,7 @@
                     <select @bind="j.Storage">
                         @foreach (var s in Data.BackupStorages)
                         {
-                            <option value="@s">@s</option>
+                            <option value="@s">@Label(s)</option>
                         }
                     </select>
                 </label>
@@ -63,7 +64,7 @@
                     <option value="">@Loc.T("(wählen)")</option>
                     @foreach (var s in Data.BackupStorages)
                     {
-                        <option value="@s">@s</option>
+                        <option value="@s">@Label(s)</option>
                     }
                 </select>
             </label>
@@ -106,7 +107,7 @@
                     {
                         <div class="snap-row">
                             <span class="snap-name">@b.Time.LocalDateTime.ToString("dd.MM.yyyy HH:mm")</span>
-                            <span class="muted">@Format.Bytes(b.Size) · @b.Storage · @b.Type</span>
+                            <span class="muted">@Format.Bytes(b.Size) · @Label(b.Storage) · @b.Type</span>
                             <span class="snap-btns">
                                 <button class="btn xs danger" disabled="@busy" @onclick="() => RestoreBackup(b)">@Loc.T("Restore")</button>
                                 <button class="btn xs danger" disabled="@busy" @onclick="() => DeleteBackup(b)">@Loc.T("Löschen")</button>
@@ -142,8 +143,10 @@
     private string? msg;
     private string? bkpMsg;
     private bool busy;
+    private Dictionary<string, string> aliases = new();
 
     private string GuestName(int vmid) => Data.Guests.FirstOrDefault(g => g.VmId == vmid)?.Name ?? $"VM {vmid}";
+    private string Label(string id) => aliases.TryGetValue(id, out var l) && !string.IsNullOrWhiteSpace(l) ? l : id;
 
     private async Task RestoreBackup(BackupInfo b)
     {
@@ -173,12 +176,16 @@
     protected override async Task OnInitializedAsync()
     {
         Data.Changed += OnChanged;
+        aliases = await Conn.GetAliasesAsync();
         if (Data.LastUpdated == default) await Data.RefreshAsync();
         Load();
         if (string.IsNullOrEmpty(nw.Storage)) nw.Storage = Data.BackupStorages.FirstOrDefault() ?? "";
     }
 
-    private void OnChanged() => InvokeAsync(() => { Load(); StateHasChanged(); });
+    // Auto-refresh (timer) must NOT rebuild the job edit models — that would clobber
+    // in-progress edits (checkbox snapping back). Only re-render the live views
+    // (backups list, guest status). Jobs reload only on explicit user actions below.
+    private void OnChanged() => InvokeAsync(StateHasChanged);
 
     private void Load() => jobs = Data.BackupJobs.Select(j => new JobEdit
     {
@@ -204,15 +211,17 @@
         msg = err is null ? Loc.T("Job angelegt.") : Loc.T("Fehler: {0}", err);
         nw = new() { Schedule = "03:00", KeepLast = 1, All = true, Storage = Data.BackupStorages.FirstOrDefault() ?? "" };
         await Data.RefreshAsync();
+        Load();
     }
 
     private async Task Del(JobEdit j)
     {
         var sel = j.All ? Loc.T("alle Guests") : j.VmidCsv;
-        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Backup-Job ({0} → {1}) löschen?", sel, j.Storage))) return;
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Backup-Job ({0} → {1}) löschen?", sel, Label(j.Storage)))) return;
         var err = await Pve.DeleteBackupJobAsync(j.Id);
         msg = err is null ? Loc.T("Gelöscht.") : Loc.T("Fehler: {0}", err);
         await Data.RefreshAsync();
+        Load();
     }
 
     public void Dispose() => Data.Changed -= OnChanged;
