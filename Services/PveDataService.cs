@@ -3,7 +3,7 @@ using PveWelcome.Models;
 namespace PveWelcome.Services;
 
 /// Caches PVE + NPM data and refreshes it in the background so pages render instantly.
-public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactory httpFactory, NotificationService notifier, ILogger<PveDataService> log) : IHostedService, IDisposable
+public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactory httpFactory, NotificationService notifier, EmergencyService emergency, ILogger<PveDataService> log) : IHostedService, IDisposable
 {
     private Timer? _timer;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -87,6 +87,7 @@ public class PveDataService(IServiceScopeFactory scopeFactory, IHttpClientFactor
             MonitorUp = await CheckMonitorsAsync(Monitors);
             LastUpdated = DateTime.Now;
             await NotifyNewAlertsAsync();
+            await emergency.CheckAutoAsync(Storages, Guests, Hosts);
         }
         catch (Exception ex) { log.LogWarning(ex, "data refresh"); }
         finally

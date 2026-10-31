@@ -3,6 +3,8 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @inject PveDataService Data
+@inject EmergencyService Em
+@inject ConnectionConfig Conn
 @inject PveClient Pve
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -22,6 +24,32 @@
             <button class="btn btn-ghost sm" @onclick="Refresh" disabled="@Data.Refreshing">↻ Refresh</button>
         </div>
     </div>
+
+    @{ var em = Em.State; }
+    <section class="emergency @(em.Active ? "on" : "")">
+        @if (em.Active)
+        {
+            <div class="em-main">
+                <strong>🚨 @Loc.T("Notfall-Modus aktiv")</strong>
+                <span>@Loc.T("seit") @em.Since?.ToString("dd.MM. HH:mm") — @em.Reason</span>
+                <span class="muted">@Loc.T("Pausiert/gestoppt"): @PausedNames() · @Loc.T("NPM-Hosts deaktiviert"): @Count(em.DisabledHosts)</span>
+            </div>
+            <button class="btn go" @onclick="EmOff" disabled="@emBusy">@Loc.T("Notfall beenden & wiederherstellen")</button>
+        }
+        else
+        {
+            <div class="em-main">
+                <strong>@Loc.T("Notfall-Modus")</strong>
+                <span class="muted">@Loc.T("Pausiert alle VMs (außer core), stoppt Container, deaktiviert öffentliche NPM-Hosts.")
+                    @(em.AutoEnabled ? Loc.T("Automatisch ab {0} % auf einem VM-Storage.", em.Threshold) : Loc.T("Automatik aus."))</span>
+            </div>
+            <button class="btn danger" @onclick="EmOn" disabled="@emBusy">🚨 @Loc.T("Notfall-Modus aktivieren")</button>
+        }
+        @if (Em.LastMessage is not null)
+        {
+            <span class="em-msg muted">@Em.LastMessage</span>
+        }
+    </section>
 
     @if (Data.Alerts.Count > 0)
     {
@@ -240,11 +268,50 @@
             : Loc.T("Backup-Start für {0} fehlgeschlagen.", g.Name);
     }
 
+    private bool emBusy;
+
+    private static int Count(string csv) => csv.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
+
+    private string PausedNames()
+    {
+        var ids = Em.State.Paused.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split(':').Last()).ToList();
+        if (ids.Count == 0) return "–";
+        return string.Join(", ", ids.Select(id => Data.Guests.FirstOrDefault(g => g.VmId.ToString() == id)?.Name ?? "#" + id));
+    }
+
+    private async Task EmOn()
+    {
+        var (pg, ph) = EmergencyService.Plan(Data.Guests, Data.Hosts, EmergencyService.CoreIp(Conn.Current.NpmBaseUrl),
+            Em.State.KeepVmIds, Em.State.KeepDomains);
+        var q = Loc.T("Notfall-Modus aktivieren?\n\nPausieren/stoppen: {0}\nNPM-Hosts deaktivieren: {1}\n\nGrund (optional):",
+            pg.Count == 0 ? "–" : string.Join(", ", pg.Select(g => g.Name)),
+            ph.Count == 0 ? "–" : string.Join(", ", ph.SelectMany(h => h.DomainNames)));
+        var reason = await JS.InvokeAsync<string?>("prompt", q, Loc.T("manuell"));
+        if (reason is null) return;
+        emBusy = true;
+        try { await Em.ActivateAsync(string.IsNullOrWhiteSpace(reason) ? Loc.T("manuell") : reason, Data.Guests, Data.Hosts); }
+        finally { emBusy = false; }
+        await Data.RefreshAsync();
+    }
+
+    private async Task EmOff()
+    {
+        var hot = Em.HotStorages(Data.Storages);
+        var warn = hot.Count > 0 ? "\n\n" + Loc.T("⚠ Storage {0} ist noch über {1} % — die Guests können ihn sofort wieder füllen!",
+            string.Join(", ", hot.Select(s => s.Name)), Em.State.Threshold) : "";
+        if (!await JS.InvokeAsync<bool>("confirm", Loc.T("Notfall-Modus beenden und alles wiederherstellen?") + warn)) return;
+        emBusy = true;
+        try { await Em.DeactivateAsync(); }
+        finally { emBusy = false; }
+        await Data.RefreshAsync();
+    }
+
     private System.Threading.Timer? _ticker;
 
     protected override async Task OnInitializedAsync()
     {
         Data.Changed += OnChanged;
+        Em.Changed += OnChanged;
         _ticker = new System.Threading.Timer(_ => InvokeAsync(StateHasChanged), null, 5000, 5000);
         if (Data.LastUpdated == default) await Data.RefreshAsync();
     }
@@ -297,6 +364,7 @@
     public void Dispose()
     {
         Data.Changed -= OnChanged;
+        Em.Changed -= OnChanged;
         _ticker?.Dispose();
     }
 }

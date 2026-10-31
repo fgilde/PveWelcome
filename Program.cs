@@ -15,6 +15,7 @@ using PveWelcome.Services;
 if (args.Contains("--selfcheck"))
 {
     PhysicalMachineService.SelfCheck();
+    EmergencyService.SelfCheck();
     return;
 }
 
@@ -43,6 +44,7 @@ builder.Services.AddSingleton<ConnectionConfig>();
 builder.Services.AddSingleton<BrandResolver>();
 builder.Services.AddSingleton<LandingService>();
 builder.Services.AddSingleton<NotificationService>();
+builder.Services.AddSingleton<EmergencyService>();
 builder.Services.AddSingleton<PveDataService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PveDataService>());
 
@@ -86,6 +88,7 @@ using (var scope = app.Services.CreateScope())
 await app.Services.GetRequiredService<ConnectionConfig>().InitAsync(app.Configuration);
 await app.Services.GetRequiredService<BrandResolver>().InitAsync(app.Configuration);
 await app.Services.GetRequiredService<LandingService>().InitAsync();
+await app.Services.GetRequiredService<EmergencyService>().InitAsync();
 
 if (!app.Environment.IsDevelopment())
 {

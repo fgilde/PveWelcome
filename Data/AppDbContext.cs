@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LandingPage> LandingPages => Set<LandingPage>();
     public DbSet<PhysicalMachine> PhysicalMachines => Set<PhysicalMachine>();
     public DbSet<StorageAlias> StorageAliases => Set<StorageAlias>();
+    public DbSet<EmergencyState> Emergency => Set<EmergencyState>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

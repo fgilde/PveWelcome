@@ -388,3 +388,13 @@ pre.code-block { background:#0d0d14; color:#c9d1d9; border:1px solid var(--line)
 .domain-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.35rem .7rem; border:1px solid var(--line); border-radius:999px;
   background:color-mix(in srgb, var(--accent) 8%, transparent); color:var(--fg); font-size:.85rem; font-weight:600; text-decoration:none; }
 .domain-chip:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ---------- emergency mode ---------- */
+.emergency { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; padding: .8rem 1rem;
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.emergency .em-main { display: flex; flex-direction: column; gap: .2rem; flex: 1; min-width: 240px; font-size: .88rem; }
+.emergency.on { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, var(--panel)); animation: em-pulse 2s ease-in-out infinite; }
+.emergency.on strong { color: #ff9a9a; }
+.emergency .em-msg { flex-basis: 100%; font-size: .8rem; }
+@keyframes em-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 25%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .emergency.on { animation: none; } }

@@ -5,6 +5,7 @@
 @inject PveDataService Data
 @inject PveClient Pve
 @inject MonitorService Monitors
+@inject EmergencyService Em
 
 <PageTitle>@Loc.T("Einstellungen")</PageTitle>
 
@@ -101,6 +102,22 @@
         <button class="btn sm go" @onclick="SaveConn">@Loc.T("Speichern & neu laden")</button>
     </div>
 
+    <h2>@Loc.T("Notfall-Modus")</h2>
+    <p class="muted">@Loc.T("Pausiert VMs (Suspend), fährt Container herunter und deaktiviert NPM-Hosts. Der Guest mit NPM/PveWelcome und PveWelcomes eigene Domains bleiben immer an. Guests ohne bekannte IP werden nie angefasst.")</p>
+    <div class="settings-card">
+        <div class="settings-grid">
+            <label class="chk"><input type="checkbox" @bind="emAuto" /> @Loc.T("Automatisch aktivieren, wenn ein VM-Storage voll läuft")</label>
+            <label>@Loc.T("Schwelle (%)")<input type="number" min="50" max="100" @bind="emThreshold" /></label>
+            <label>@Loc.T("Nie pausieren (VMIDs, kommagetrennt)")<input @bind="emKeepVm" placeholder="z.B. 202" /></label>
+            <label>@Loc.T("NPM-Domains anlassen (kommagetrennt)")<input @bind="emKeepDom" placeholder="vault.nksoft.de" /></label>
+        </div>
+        <button class="btn sm go" @onclick="SaveEm">@Loc.T("Speichern")</button>
+        @if (emMsg is not null)
+        {
+            <span class="muted" style="margin-left:1rem">@emMsg</span>
+        }
+    </div>
+
     <h2>@Loc.T("Monitore (eigene HTTP-Checks)")</h2>
     <p class="muted">@Loc.T("Beliebige URLs überwachen (nicht nur NPM-Domains). Down → Alert + Telegram/Webhook.")</p>
     <div class="settings-card">
@@ -132,6 +149,18 @@
     private string monName = "";
     private string monUrl = "";
 
+    private bool emAuto;
+    private int emThreshold;
+    private string emKeepVm = "", emKeepDom = "";
+    private string? emMsg;
+
+    private async Task SaveEm()
+    {
+        await Em.SaveSettingsAsync(emAuto, emThreshold, emKeepVm, emKeepDom);
+        emThreshold = Em.State.Threshold;
+        emMsg = Loc.T("Gespeichert.");
+    }
+
     // Backup targets
     private Dictionary<string, string> aliases = new();
     private List<StorageInfo> backupStorages = [];
@@ -156,6 +185,8 @@
     protected override async Task OnInitializedAsync()
     {
         monitors = await Monitors.ListAsync();
+        var e = Em.State;
+        (emAuto, emThreshold, emKeepVm, emKeepDom) = (e.AutoEnabled, e.Threshold, e.KeepVmIds, e.KeepDomains);
         var c = Conn.Current;
         conn = new ConnectionSettings
         {
